@@ -22,6 +22,9 @@ set (aapmidideviceservice_LIBDIRS
 
 set (aapmidideviceservice_LIBS
 		androidaudioplugin
+		android
+		log
+		binder_ndk
 		)
 
 add_library ( # Specifies the name of the library.

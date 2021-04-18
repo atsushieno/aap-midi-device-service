@@ -1,96 +1,98 @@
 package org.androidaudioplugin.midideviceservice
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
+import android.media.AudioManager
 import android.media.midi.MidiDeviceService
+import android.media.midi.MidiDeviceStatus
 import android.media.midi.MidiReceiver
-import org.androidaudioplugin.AudioPluginHost
-import org.androidaudioplugin.AudioPluginHostHelper
-import org.androidaudioplugin.AudioPluginInstance
-import org.androidaudioplugin.PortInformation
-import java.nio.ByteBuffer
+import android.os.IBinder
+import org.androidaudioplugin.*
 
 class AudioPluginMidiDeviceService : MidiDeviceService() {
 
-    //private lateinit var host : AudioPluginHost
-    private var midiReceivers: MutableMap<String,MidiReceiver> = mutableMapOf()
+    // The number of ports is not simply adjustable in one code. device_info.xml needs updates too.
+    private lateinit var midiReceivers: Array<AudioPluginMidiReceiver>
 
-    override fun onGetInputPortReceivers(): Array<MidiReceiver> = midiReceivers.values.toTypedArray()
+    override fun onCreate() {
+        midiReceivers = arrayOf(AudioPluginMidiReceiver(this))
+    }
 
-    init {
-        val aapService = AudioPluginHostHelper.queryAudioPluginServices(applicationContext)
-            .firstOrNull { s -> s.packageName == this.packageName }
-        if (aapService == null)
-            midiReceivers = mutableMapOf()
-        /*
-        else {
-            host = AudioPluginHost(applicationContext)
-            host.pluginInstantiatedListeners.add { instance ->
-                midiReceivers[instance.pluginInfo.pluginId!!] = AudioPluginMidiReceiver(this, host, instance)
-            }
-            host.bindAudioPluginService(aapService)
-        }
-        */
+    override fun onGetInputPortReceivers(): Array<MidiReceiver> = midiReceivers.map { e -> e as MidiReceiver }.toTypedArray()
+
+    override fun onDeviceStatusChanged(status: MidiDeviceStatus?) {
+        if (status == null) return
+        if (status.isInputPortOpen(0))
+            midiReceivers[0].start()
+        else if (!status.isInputPortOpen(0))
+            midiReceivers[0].stop()
     }
 }
 
-class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService, host: AudioPluginHost, private val plugin: AudioPluginInstance) : MidiReceiver(), AutoCloseable {
-    /*
-    private lateinit var midiBuffer: ByteBuffer
-    private val audioBuffers: Array<ByteBuffer>
+class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService) : MidiReceiver(), AutoCloseable {
+    companion object {
+        init {
+            System.loadLibrary("aapmidideviceservice")
+        }
+    }
 
-    private val bufferSize = AudioTrack.getMinBufferSize(host.sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_FLOAT)
-
-    private val track: AudioTrack = AudioTrack.Builder()
-        .setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                .build())
-        .setAudioFormat(
-            AudioFormat.Builder()
-                .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-                .setSampleRate(host.sampleRate)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                .build())
-        .setBufferSizeInBytes(bufferSize)
-        .setTransferMode(AudioTrack.MODE_STREAM)
-        .build()
-     */
+    // It is used to manage Service connections, not instancing (which is managed by native code).
+    private val serviceConnector = AudioPluginServiceConnector(service.applicationContext)
 
     override fun onSend(msg: ByteArray?, offset: Int, count: Int, timestamp: Long) =
         processMessage(msg, offset, count, timestamp)
 
     override fun close() = terminateReceiverNative()
 
-    private fun start() = activate()
+    fun start() = activate()
 
-    private fun stop() = deactivate()
+    fun stop() = deactivate()
+
+    // FIXME: pass best sampleRate by device
+    private val sampleRate: Int
+
+    private fun connectService(packageName: String, className: String) {
+        if (!serviceConnector.connectedServices.any { s -> s.serviceInfo.packageName == packageName && s.serviceInfo.className == className })
+            serviceConnector.bindAudioPluginService(AudioPluginServiceInformation("", packageName, className), sampleRate)
+    }
+
+    private fun serviceHasInstrument(service: AudioPluginServiceInformation) =
+        service.plugins.any { p -> isInstrument(p) }
+
+    private fun isInstrument(info: PluginInformation) =
+        // FIXME: use const
+//        info.category.contains(PluginInformation.PRIMARY_CATEGORY_INSTRUMENT)
+        info.category?.contains("Instrument") ?: info.category?.contains("Synth") ?: false
+
+    private fun setupDefaultPlugins() {
+        val allAAPs = AudioPluginHostHelper.queryAudioPluginServices(service.applicationContext)
+        val service =
+            allAAPs.firstOrNull { s -> s.packageName == service.packageName && serviceHasInstrument(s) }
+            ?: allAAPs.firstOrNull { s -> serviceHasInstrument(s) }
+        if (service != null)
+            connectService(service.packageName, service.className)
+    }
+
+    private val pendingInstantiationList = mutableListOf<PluginInformation>()
 
     init {
-        /*
-        plugin.prepare(host.sampleRate, host.audioBufferSizeInBytes)
-        val audioBufferList = mutableListOf<ByteBuffer>()
-        for (i in 0 until plugin.pluginInfo.ports.size) {
-            val portInfo = plugin.pluginInfo.ports[i]
-            if (portInfo.direction == PortInformation.PORT_DIRECTION_INPUT &&
-                portInfo.content == PortInformation.PORT_CONTENT_TYPE_MIDI)
-                midiBuffer = plugin.getPortBuffer(i)
-            else if (portInfo.direction == PortInformation.PORT_DIRECTION_OUTPUT &&
-                portInfo.content == PortInformation.PORT_CONTENT_TYPE_AUDIO)
-                audioBufferList.add(plugin.getPortBuffer(i))
+        serviceConnector.serviceConnectedListeners.add { connection ->
+            addPluginService(connection.binder!!, connection.serviceInfo.packageName, connection.serviceInfo.className)
+            for (i in pendingInstantiationList)
+                if (i.packageName == connection.serviceInfo.packageName && i.localName == connection.serviceInfo.className)
+                    instantiatePlugin(i.pluginId!!)
         }
-        audioBuffers = audioBufferList.toTypedArray()
-        track.setVolume(5.0f)
-        */
-
         initializeReceiverNative(service.applicationContext)
+
+        val audioManager = service.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        sampleRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toInt() ?: 44100
+
+        setupDefaultPlugins()
     }
 
     private external fun initializeReceiverNative(applicationContext: Context)
     private external fun terminateReceiverNative()
+    private external fun addPluginService(binder: IBinder, packageName: String, className: String)
+    private external fun instantiatePlugin(pluginId: String)
     private external fun processMessage(msg: ByteArray?, offset: Int, count: Int, timestamp: Long)
     private external fun activate()
     private external fun deactivate()
