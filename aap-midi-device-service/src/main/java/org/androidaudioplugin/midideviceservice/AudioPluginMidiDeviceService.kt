@@ -77,21 +77,16 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
             serviceConnector.bindAudioPluginService(AudioPluginServiceInformation("", packageName, className), sampleRate!!)
     }
 
-    private fun serviceHasInstrument(service: AudioPluginServiceInformation) =
-        service.plugins.any { p -> isInstrument(p) }
-
     private fun isInstrument(info: PluginInformation) =
-        // FIXME: use const
-//        info.category.contains(PluginInformation.PRIMARY_CATEGORY_INSTRUMENT)
-        info.category?.contains("Instrument") ?: info.category?.contains("Synth") ?: false
+        info.category?.contains(PluginInformation.PRIMARY_CATEGORY_INSTRUMENT) ?: info.category?.contains("Synth") ?: false
 
     private fun setupDefaultPlugins() {
-        val allAAPs = AudioPluginHostHelper.queryAudioPluginServices(service.applicationContext)
-        val service =
-            allAAPs.firstOrNull { s -> s.packageName == service.packageName && serviceHasInstrument(s) }
-            ?: allAAPs.firstOrNull { s -> serviceHasInstrument(s) }
-        if (service != null)
-            connectService(service.packageName, service.className)
+        val allPlugins = AudioPluginHostHelper.queryAudioPlugins(service.applicationContext)
+        val plugin = model.instrument ?: allPlugins.firstOrNull { p -> p.packageName == service.packageName && isInstrument(p) }
+        if (plugin != null) {
+            pendingInstantiationList.add(plugin)
+            connectService(plugin.packageName, plugin.localName)
+        }
     }
 
     private val pendingInstantiationList = mutableListOf<PluginInformation>()

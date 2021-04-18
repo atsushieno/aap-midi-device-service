@@ -61,6 +61,10 @@ JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPlugin
         JNIEnv *env, jobject midiReceiver) {
 }
 
+JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_instantiatePlugin(
+        JNIEnv *env, jobject midiReceiver, jstring pluginId) {
+}
+
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_processMessage(
         JNIEnv *env, jobject midiReceiver, jobject bytes, jint offset, jint length,
         jlong timestamp) {

@@ -4,10 +4,16 @@ project(aapmidideviceservice VERSION 0.6.2 LANGUAGES CXX)
 
 get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../external/android-audio-plugin-framework" ABSOLUTE)
 
+set (OBOE_DIR "../../../external/oboe")
+
+add_subdirectory(${OBOE_DIR} ./oboe)
+
+include_directories (${OBOE_DIR}/include)
 
 # List of sources. Android build has some additional sources.
 set (aapmidideviceservice_SOURCES
-	"cpp/aapmidideviceservice.cpp"
+	"cpp/aapmidideviceservice-jni.cpp"
+	"cpp/AAPMidiProcessor.cpp"
 	)
 
 set (aapmidideviceservice_INCLUDES
@@ -25,6 +31,7 @@ set (aapmidideviceservice_LIBS
 		android
 		log
 		binder_ndk
+		oboe
 		)
 
 add_library ( # Specifies the name of the library.
