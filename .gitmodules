@@ -1,0 +1,3 @@
+[submodule "external/android-audio-plugin-framework"]
+	path = external/android-audio-plugin-framework
+	url = https://github.com/atsushieno/android-audio-plugin-framework.git

@@ -1,0 +1,56 @@
+cmake_minimum_required(VERSION 3.5.1)
+
+project(aapmidideviceservice VERSION 0.6.2 LANGUAGES CXX)
+
+get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../external/android-audio-plugin-framework" ABSOLUTE)
+
+
+# List of sources. Android build has some additional sources.
+set (aapmidideviceservice_SOURCES
+	"cpp/aapmidideviceservice.cpp"
+	)
+
+set (aapmidideviceservice_INCLUDES
+		${AAPDIR}/native/plugin-api/include
+		${AAPDIR}/native/androidaudioplugin/core/include
+		${AAPDIR}/native/androidaudioplugin/android/include
+		)
+
+set (aapmidideviceservice_LIBDIRS
+		"${AAPDIR}/java/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
+		)
+
+set (aapmidideviceservice_LIBS
+		androidaudioplugin
+		)
+
+add_library ( # Specifies the name of the library.
+		aapmidideviceservice
+
+		# Sets the library as a shared library.
+		SHARED
+
+		# Provides a relative path to your source file(s).
+		${aapmidideviceservice_SOURCES}
+		)
+
+target_include_directories (aapmidideviceservice
+        PRIVATE
+        ${aapmidideviceservice_INCLUDES}
+        )
+
+target_compile_options (aapmidideviceservice
+        PRIVATE
+        -std=c++17
+        -Wall
+        -Wshadow
+        )
+
+target_link_directories(aapmidideviceservice
+		PRIVATE
+		${aapmidideviceservice_LIBDIRS}
+		)
+
+target_link_libraries (aapmidideviceservice
+		${aapmidideviceservice_LIBS}
+		)

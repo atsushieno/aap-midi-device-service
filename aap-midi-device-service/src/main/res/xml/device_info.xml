@@ -1,0 +1,6 @@
+<devices>
+    <device name="AAP Demo MIDI Device" manufacturer="androidaudioplugin.org" product="AAPMidiDeviceServiceDemo">
+        <input-port name="input" />
+    </device>
+</devices>
+

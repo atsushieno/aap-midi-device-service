@@ -1,0 +1,3 @@
+rootProject.name = "aap-midi-device-service"
+include ':aap-midi-device-service'
+
