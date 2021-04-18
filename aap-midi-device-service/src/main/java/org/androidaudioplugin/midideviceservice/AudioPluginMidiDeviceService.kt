@@ -6,25 +6,26 @@ import android.media.midi.MidiDeviceService
 import android.media.midi.MidiDeviceStatus
 import android.media.midi.MidiReceiver
 import android.os.IBinder
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import org.androidaudioplugin.*
+import kotlin.properties.Delegates
 
 class AudioPluginMidiDeviceService : MidiDeviceService() {
 
     // The number of ports is not simply adjustable in one code. device_info.xml needs updates too.
-    private lateinit var midiReceivers: Array<AudioPluginMidiReceiver>
-
-    override fun onCreate() {
-        midiReceivers = arrayOf(AudioPluginMidiReceiver(this))
-    }
+    private var midiReceivers: Array<AudioPluginMidiReceiver> = arrayOf(AudioPluginMidiReceiver(this))
 
     override fun onGetInputPortReceivers(): Array<MidiReceiver> = midiReceivers.map { e -> e as MidiReceiver }.toTypedArray()
 
     override fun onDeviceStatusChanged(status: MidiDeviceStatus?) {
+        super.onDeviceStatusChanged(status)
+
         if (status == null) return
         if (status.isInputPortOpen(0))
-            midiReceivers[0].start()
+            midiReceivers[0].initialize()
         else if (!status.isInputPortOpen(0))
-            midiReceivers[0].stop()
+            midiReceivers[0].close()
     }
 }
 
@@ -36,23 +37,44 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     }
 
     // It is used to manage Service connections, not instancing (which is managed by native code).
-    private val serviceConnector = AudioPluginServiceConnector(service.applicationContext)
+    private lateinit var serviceConnector: AudioPluginServiceConnector
 
-    override fun onSend(msg: ByteArray?, offset: Int, count: Int, timestamp: Long) =
-        processMessage(msg, offset, count, timestamp)
+    // We cannot make it lateinit var because it is primitive, and cannot initialize at instantiated
+    // time as it must be instantiated at MidiDeviceService instantiation time when ApplicationContext
+    // is not assigned yet (as onCreate() was not invoked yet!).
+    private var sampleRate: Int? = null
 
-    override fun close() = terminateReceiverNative()
+    fun initialize() {
+        val audioManager = service.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        sampleRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toInt() ?: 44100
 
-    fun start() = activate()
+        serviceConnector = AudioPluginServiceConnector(service.applicationContext)
 
-    fun stop() = deactivate()
+        serviceConnector.serviceConnectedListeners.add { connection ->
+            addPluginService(
+                connection.binder!!,
+                connection.serviceInfo.packageName,
+                connection.serviceInfo.className
+            )
+            for (i in pendingInstantiationList)
+                if (i.packageName == connection.serviceInfo.packageName && i.localName == connection.serviceInfo.className)
+                    instantiatePlugin(i.pluginId!!)
 
-    // FIXME: pass best sampleRate by device
-    private val sampleRate: Int
+            activate()
+        }
+        initializeReceiverNative(service.applicationContext)
+
+        setupDefaultPlugins()
+    }
+
+    override fun close() {
+        deactivate()
+        terminateReceiverNative()
+    }
 
     private fun connectService(packageName: String, className: String) {
         if (!serviceConnector.connectedServices.any { s -> s.serviceInfo.packageName == packageName && s.serviceInfo.className == className })
-            serviceConnector.bindAudioPluginService(AudioPluginServiceInformation("", packageName, className), sampleRate)
+            serviceConnector.bindAudioPluginService(AudioPluginServiceInformation("", packageName, className), sampleRate!!)
     }
 
     private fun serviceHasInstrument(service: AudioPluginServiceInformation) =
@@ -74,20 +96,8 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
     private val pendingInstantiationList = mutableListOf<PluginInformation>()
 
-    init {
-        serviceConnector.serviceConnectedListeners.add { connection ->
-            addPluginService(connection.binder!!, connection.serviceInfo.packageName, connection.serviceInfo.className)
-            for (i in pendingInstantiationList)
-                if (i.packageName == connection.serviceInfo.packageName && i.localName == connection.serviceInfo.className)
-                    instantiatePlugin(i.pluginId!!)
-        }
-        initializeReceiverNative(service.applicationContext)
-
-        val audioManager = service.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        sampleRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toInt() ?: 44100
-
-        setupDefaultPlugins()
-    }
+    override fun onSend(msg: ByteArray?, offset: Int, count: Int, timestamp: Long) =
+        processMessage(msg, offset, count, timestamp)
 
     private external fun initializeReceiverNative(applicationContext: Context)
     private external fun terminateReceiverNative()

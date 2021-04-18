@@ -6,6 +6,7 @@
 #include <aap/audio-plugin-host.h>
 #include <aap/audio-plugin-host-android.h>
 #include <aap/android-context.h>
+#include <aap/logging.h>
 
 
 
@@ -63,7 +64,7 @@ JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPlugin
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_processMessage(
         JNIEnv *env, jobject midiReceiver, jobject bytes, jint offset, jint length,
         jlong timestamp) {
-    printf("!!! TODO: IMPLEMENT processMessage() !!!");
+    aap::aprintf("!!! TODO: IMPLEMENT processMessage() !!!");
 }
 
 } // extern "C"
