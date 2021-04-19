@@ -29,19 +29,17 @@ extern "C" {
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_initializeReceiverNative(
         JNIEnv *env, jobject midiReceiver, jobject applicationContext, jint sampleRate) {
-    aap::set_application_context(env, applicationContext);
-
     AAPMIDIDEVICE_INSTANCE->initialize(sampleRate);
 }
 
-JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_addPluginService(
+JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_registerPluginService(
         JNIEnv *env, jobject midiReceiver, jobject binder, jstring packageName, jstring className) {
     std::string packageNameString = stringFromJava(env, packageName);
     std::string classNameString = stringFromJava(env, className);
     auto binderRef = env->NewGlobalRef(binder);
     auto aiBinder = AIBinder_fromJavaBinder(env, binder);
 
-    AAPMIDIDEVICE_INSTANCE->addPluginService(
+    AAPMIDIDEVICE_INSTANCE->registerPluginService(
             aap::AudioPluginServiceConnection(packageNameString, classNameString, binderRef, aiBinder));
 }
 

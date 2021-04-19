@@ -25,6 +25,8 @@ namespace aapmidideviceservice {
 
     void AAPMidiProcessor::initialize(int32_t sampleRate) {
         // AAP settings
+        host = std::make_unique<aap::PluginHost>(&host_manager);
+        sample_rate = sampleRate;
 
         // Oboe configuration
         builder.setDirection(oboe::Direction::Output);
@@ -37,7 +39,7 @@ namespace aapmidideviceservice {
     }
 
     void AAPMidiProcessor::terminate() {
-
+        host.reset();
     }
 
     std::string AAPMidiProcessor::convertStateToText(AAPMidiProcessorState stateValue) {
@@ -54,13 +56,23 @@ namespace aapmidideviceservice {
         return "(UNKNOWN)";
     }
 
-    void AAPMidiProcessor::addPluginService(const aap::AudioPluginServiceConnection service) {
-        auto pal = dynamic_cast<aap::AndroidPluginHostPAL *>(aap::getPluginHostPAL());
+    void AAPMidiProcessor::registerPluginService(const aap::AudioPluginServiceConnection service) {
+        // FIXME: it's better to use dynamic_cast but the actual entity is not a pointer,
+        //  a reference to a field, dynamic_cast<>() returns NULL and this it fails.
+        auto pal = (aap::AndroidPluginHostPAL*) aap::getPluginHostPAL();
         pal->serviceConnections.emplace_back(service);
     }
 
     void AAPMidiProcessor::instantiatePlugin(std::string pluginId) {
-        aap::aprintf("!!! TODO: IMPLEMENT instantiatePlugin() !!!");
+        if (state != AAP_MIDI_PROCESSOR_STATE_CREATED) {
+            aap::aprintf("Unexpected call to start() at %s state.",
+                         convertStateToText(state).c_str());
+            state = AAP_MIDI_PROCESSOR_STATE_ERROR;
+            return;
+        }
+
+        auto instanceId = host->createInstance(pluginId, sample_rate);
+        instance_ids.emplace_back(instanceId);
     }
 
     void AAPMidiProcessor::activate() {

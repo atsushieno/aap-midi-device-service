@@ -24,6 +24,9 @@ namespace aapmidideviceservice {
 
         // AAP
         aap::PluginHostManager host_manager{};
+        std::unique_ptr<aap::PluginHost> host{nullptr};
+        int sample_rate{0};
+        std::vector<int32_t> instance_ids{};
 
         // Oboe
         oboe::AudioStreamBuilder builder;
@@ -36,7 +39,7 @@ namespace aapmidideviceservice {
 
         void initialize(int32_t sampleRate);
 
-        void addPluginService(const aap::AudioPluginServiceConnection service);
+        static void registerPluginService(const aap::AudioPluginServiceConnection service);
 
         void instantiatePlugin(std::string pluginId);
 
