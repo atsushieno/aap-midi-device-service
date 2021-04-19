@@ -62,7 +62,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
             activate()
         }
-        initializeReceiverNative(service.applicationContext)
+        initializeReceiverNative(service.applicationContext, sampleRate!!)
 
         setupDefaultPlugins()
     }
@@ -94,7 +94,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     override fun onSend(msg: ByteArray?, offset: Int, count: Int, timestamp: Long) =
         processMessage(msg, offset, count, timestamp)
 
-    private external fun initializeReceiverNative(applicationContext: Context)
+    private external fun initializeReceiverNative(applicationContext: Context, sampleRate: Int)
     private external fun terminateReceiverNative()
     private external fun addPluginService(binder: IBinder, packageName: String, className: String)
     private external fun instantiatePlugin(pluginId: String)

@@ -25,20 +25,24 @@ fun App() {
         .filter { p -> p.category?.contains("Instrument") ?: false || p.category?.contains("Synth") ?: false }
 
     AAPMidiDeviceServiceTheme {
+        // FIXME: maybe we should remove this hacky state variable
+        var midiManagerInitialized by remember { mutableStateOf(model.midiManagerInitialized) }
+
         Surface(color = MaterialTheme.colors.background) {
             Column {
                 AvailablePlugins(onItemClick = { plugin -> model.instrument = plugin }, plugins)
                 Row {
-                    /*
                     if (midiManagerInitialized)
                         Button(modifier = Modifier.padding(2.dp),
                             onClick = {
-                                midiManagerInitialized = false
+                                // FIXME: currently something is incorrectly reused and caused crash,
+                                //  so I explicitly keep it non-reusable. This should be fixed.
+                                //midiManagerInitialized = false
                                 model.terminateMidi()
                             }) {
                             Text("Stop MIDI Service")
                         }
-                    else*/
+                    else
                         Button(modifier = Modifier.padding(2.dp),
                             onClick = {
                                 midiManagerInitialized = true
@@ -61,7 +65,7 @@ fun AvailablePlugins(onItemClick: (PluginInformation) -> Unit = {}, instrumentPl
     val small = TextStyle(fontSize = 12.sp)
 
     val state by remember { mutableStateOf(LazyListState()) }
-    var selectedIndex by remember { mutableStateOf(0) }
+    var selectedIndex by remember { mutableStateOf(-1) }
 
     LazyColumn(state = state) {
         itemsIndexed(instrumentPlugnis, itemContent = { index, plugin ->

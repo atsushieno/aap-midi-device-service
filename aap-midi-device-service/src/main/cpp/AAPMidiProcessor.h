@@ -4,32 +4,50 @@
 
 #include <oboe/Oboe.h>
 
-class AAPOboeAudioCallback : public oboe::AudioStreamDataCallback {
-public:
-    oboe::DataCallbackResult onAudioReady(oboe::AudioStream *audioStream, void *audioData, int32_t numFrames);
-};
+namespace aapmidideviceservice {
 
-enum AAPMidiProcessorState {
-    AAP_MIDI_PROCESSOR_STATE_CREATED,
-    AAP_MIDI_PROCESSOR_STATE_STARTED,
-    AAP_MIDI_PROCESSOR_STATE_STOPPED,
-    AAP_MIDI_PROCESSOR_STATE_ERROR
-};
+    class AAPOboeAudioCallback : public oboe::AudioStreamDataCallback {
+    public:
+        oboe::DataCallbackResult
+        onAudioReady(oboe::AudioStream *audioStream, void *audioData, int32_t numFrames);
+    };
 
-class AAPMidiProcessor {
-    static std::string convertStateToText(AAPMidiProcessorState state);
+    enum AAPMidiProcessorState {
+        AAP_MIDI_PROCESSOR_STATE_CREATED,
+        AAP_MIDI_PROCESSOR_STATE_STARTED,
+        AAP_MIDI_PROCESSOR_STATE_STOPPED,
+        AAP_MIDI_PROCESSOR_STATE_ERROR
+    };
 
-    oboe::AudioStreamBuilder builder;
-    AAPOboeAudioCallback callback;
-    std::shared_ptr<oboe::AudioStream> stream;
-    AAPMidiProcessorState state;
+    class AAPMidiProcessor {
+        static std::string convertStateToText(AAPMidiProcessorState state);
 
-public:
+        // AAP
+        aap::PluginHostManager host_manager{};
 
-    void initialize();
+        // Oboe
+        oboe::AudioStreamBuilder builder;
+        AAPOboeAudioCallback callback;
+        std::shared_ptr<oboe::AudioStream> stream;
+        AAPMidiProcessorState state;
 
-    void start();
-};
+    public:
+        static AAPMidiProcessor* getInstance();
 
+        void initialize(int32_t sampleRate);
+
+        void addPluginService(const aap::AudioPluginServiceConnection service);
+
+        void instantiatePlugin(std::string pluginId);
+
+        void activate();
+
+        void processMessage(uint8_t* bytes, size_t offset, size_t length, uint64_t timestamp);
+
+        void deactivate();
+
+        void terminate();
+    };
+}
 
 #endif //AAP_MIDI_DEVICE_SERVICE_AAPMIDIPROCESSOR_H
