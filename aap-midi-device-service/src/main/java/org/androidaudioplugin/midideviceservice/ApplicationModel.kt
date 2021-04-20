@@ -14,15 +14,28 @@ import org.androidaudioplugin.AudioPluginHostHelper
 import org.androidaudioplugin.PluginInformation
 
 
-lateinit var model: ApplicationModel
+internal lateinit var applicationContextForModel: Context
 
-class ApplicationModel(context: Context) {
+val model: ApplicationModel
+    get() = ApplicationModel.instance
+
+class ApplicationModel(private val packageName: String, context: Context) {
+    companion object {
+        val instance = ApplicationModel(applicationContextForModel.packageName, applicationContextForModel)
+    }
+
     val midiManager = context.getSystemService(Service.MIDI_SERVICE) as MidiManager
     lateinit var midiInput: MidiInputPort
     val pluginServices = AudioPluginHostHelper.queryAudioPluginServices(context.applicationContext)
 
     var midiManagerInitialized = false
-    var instrument: PluginInformation? = null
+    var specifiedInstrument: PluginInformation? = null
+
+    private val allPlugins: Array<PluginInformation> = AudioPluginHostHelper.queryAudioPlugins(context)
+    val instrument: PluginInformation
+        get() = specifiedInstrument ?: allPlugins.firstOrNull { p -> p.packageName == packageName && isInstrument(p) } ?: allPlugins.first { p -> isInstrument(p) }
+    private fun isInstrument(info: PluginInformation) =
+        info.category?.contains(PluginInformation.PRIMARY_CATEGORY_INSTRUMENT) ?: info.category?.contains("Synth") ?: false
 
     // it is not implemented to be restartable yet
     fun terminateMidi() {

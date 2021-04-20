@@ -12,20 +12,26 @@ namespace aapmidideviceservice {
         return &processor;
     }
 
-    oboe::DataCallbackResult AAPOboeAudioCallback::onAudioReady(
-            oboe::AudioStream *audioStream, void *audioData, int32_t numFrames) {
+    oboe::DataCallbackResult AAPMidiProcessor::OboeCallback::onAudioReady(
+            oboe::AudioStream *audioStream, void *audioData, int32_t oboeNumFrames) {
         owner->callPluginProcess();
+
+        size_t numFramesByOboePerChannel = oboeNumFrames / owner->channel_count;
+        size_t numFramesByAAP = owner->plugin_frame_size;
+        size_t numFrames =
+                numFramesByOboePerChannel > numFramesByAAP ? numFramesByAAP : numFramesByOboePerChannel;
 
         owner->fillAudioOutput(static_cast<float *>(audioData), numFrames);
 
         return oboe::DataCallbackResult::Continue;
     }
 
-    void AAPMidiProcessor::initialize(int32_t sampleRate, int32_t pluginFrameSize) {
+    void AAPMidiProcessor::initialize(int32_t sampleRate, int32_t pluginFrameSize, int32_t audioOutChannelCount) {
         // AAP settings
         host = std::make_unique<aap::PluginHost>(&host_manager);
         sample_rate = sampleRate;
         plugin_frame_size = pluginFrameSize;
+        channel_count = audioOutChannelCount;
 
         // Oboe configuration
         builder.setDirection(oboe::Direction::Output);
@@ -33,8 +39,9 @@ namespace aapmidideviceservice {
         builder.setSharingMode(oboe::SharingMode::Exclusive);
         builder.setFormat(oboe::AudioFormat::Float);
         builder.setChannelCount(oboe::ChannelCount::Stereo);
+        builder.setBufferCapacityInFrames(pluginFrameSize * audioOutChannelCount);
 
-        callback = std::make_unique<AAPOboeAudioCallback>(this);
+        callback = std::make_unique<OboeCallback>(this);
         builder.setDataCallback(callback.get());
     }
 
@@ -191,23 +198,18 @@ namespace aapmidideviceservice {
 
     // Called by Oboe audio callback implementation. It is called after AAP processing, and
     //  fill the audio outputs, interleaving the results.
-    void AAPMidiProcessor::fillAudioOutput(float* outputData, size_t numFramesOnAllChannels) {
+    void AAPMidiProcessor::fillAudioOutput(float* outputData, size_t numFrames) {
         // FIXME: the final processing result should not be the instrument instance output buffer
         //  but should be chained output result. Right now we don't support chaining.
         for (auto &data : instance_data_list) {
             if (data->instance_id == instrument_instance_id) {
-                int numChannels = data->audio_out_ports.size();
-                size_t numFramesByOboe = numFramesOnAllChannels / numChannels;
-                size_t numFramesByAAP = data->plugin_buffer->num_frames;
-                size_t numFrames =
-                        numFramesByOboe > numFramesByAAP ? numFramesByAAP : numFramesByOboe;
                 int numPorts = data->audio_out_ports.size();
                 for (int p = 0; p < numPorts; p++) {
                     int portIndex = data->audio_out_ports[p];
                     auto src = (float*) data->plugin_buffer->buffers[portIndex];
                     // We have to interleave separate port outputs to copy...
                     for (int i = 0; i < numFrames; i++)
-                        outputData[i * numChannels + p] = src[i];
+                        outputData[i * numPorts + p] = src[i];
                 }
             }
         }

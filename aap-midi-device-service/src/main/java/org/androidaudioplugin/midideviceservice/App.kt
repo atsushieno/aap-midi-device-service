@@ -30,7 +30,7 @@ fun App() {
 
         Surface(color = MaterialTheme.colors.background) {
             Column {
-                AvailablePlugins(onItemClick = { plugin -> model.instrument = plugin }, plugins)
+                AvailablePlugins(onItemClick = { plugin -> model.specifiedInstrument = plugin }, plugins)
                 Row {
                     if (midiManagerInitialized)
                         Button(modifier = Modifier.padding(2.dp),

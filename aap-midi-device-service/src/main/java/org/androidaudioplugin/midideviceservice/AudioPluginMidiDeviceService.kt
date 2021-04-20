@@ -16,6 +16,12 @@ class AudioPluginMidiDeviceService : MidiDeviceService() {
     // The number of ports is not simply adjustable in one code. device_info.xml needs updates too.
     private var midiReceivers: Array<AudioPluginMidiReceiver> = arrayOf(AudioPluginMidiReceiver(this))
 
+    override fun onCreate() {
+        super.onCreate()
+
+        applicationContextForModel = applicationContext
+    }
+
     override fun onGetInputPortReceivers(): Array<MidiReceiver> = midiReceivers.map { e -> e as MidiReceiver }.toTypedArray()
 
     override fun onDeviceStatusChanged(status: MidiDeviceStatus?) {
@@ -43,11 +49,13 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     // time as it must be instantiated at MidiDeviceService instantiation time when ApplicationContext
     // is not assigned yet (as onCreate() was not invoked yet!).
     private var sampleRate: Int? = null
-    private var frameSize: Int = 4096
+    private var frameSize: Int? = null
+    private var audioOutChannelCount: Int = 2
 
     fun initialize() {
         val audioManager = service.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         sampleRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toInt() ?: 44100
+        frameSize = (audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toInt() ?: 1024)
 
         serviceConnector = AudioPluginServiceConnector(service.applicationContext)
 
@@ -63,7 +71,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
             activate()
         }
-        initializeReceiverNative(service.applicationContext, sampleRate!!, frameSize)
+        initializeReceiverNative(service.applicationContext, sampleRate!!, frameSize!!, audioOutChannelCount)
 
         setupDefaultPlugins()
     }
@@ -78,12 +86,8 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
             serviceConnector.bindAudioPluginService(AudioPluginServiceInformation("", packageName, className), sampleRate!!)
     }
 
-    private fun isInstrument(info: PluginInformation) =
-        info.category?.contains(PluginInformation.PRIMARY_CATEGORY_INSTRUMENT) ?: info.category?.contains("Synth") ?: false
-
     private fun setupDefaultPlugins() {
-        val allPlugins = AudioPluginHostHelper.queryAudioPlugins(service.applicationContext)
-        val plugin = model.instrument ?: allPlugins.firstOrNull { p -> p.packageName == service.packageName && isInstrument(p) }
+        val plugin = model.instrument
         if (plugin != null) {
             pendingInstantiationList.add(plugin)
             connectService(plugin.packageName, plugin.localName)
@@ -94,11 +98,11 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
     override fun onSend(msg: ByteArray?, offset: Int, count: Int, timestamp: Long) {
         // We skip too lengthy MIDI buffer, dropped at frame size.
-        processMessage(msg, offset, if (count > frameSize) frameSize else count, timestamp)
+        processMessage(msg, offset, if (count > frameSize!!) frameSize!! else count, timestamp)
     }
 
     // Initialize basic native parts, without any plugin information.
-    private external fun initializeReceiverNative(applicationContext: Context, sampleRate: Int, frameSize: Int)
+    private external fun initializeReceiverNative(applicationContext: Context, sampleRate: Int, frameSize: Int, audioOutChannelCount: Int)
     private external fun terminateReceiverNative()
     // register Binder instance to native host
     private external fun registerPluginService(binder: IBinder, packageName: String, className: String)
