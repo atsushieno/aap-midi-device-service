@@ -22,6 +22,8 @@ namespace aapmidideviceservice {
             outputData[i] = ((float) drand48() - 0.5f) * 2 * amplitude;
         }
 
+
+
         return oboe::DataCallbackResult::Continue;
     }
 
@@ -49,7 +51,7 @@ namespace aapmidideviceservice {
         for (auto& data : instance_data_list) {
             int numBuffers = data->plugin_buffer->num_buffers;
             for (int n = 0; n < numBuffers; n++) {
-                munmap(data->buffer_pointers[n], data->plugin_buffer->num_frames * sizeof(float));
+                munmap(data->buffer_pointers.get()[n], data->plugin_buffer->num_frames * sizeof(float));
                 int fd = data->portSharedMemoryFDs[n];
                 if (fd != 0)
                     close(fd);
