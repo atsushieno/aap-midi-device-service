@@ -71,10 +71,10 @@ jbyte jni_midi_buffer[1024]{};
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_processMessage(
         JNIEnv *env, jobject midiReceiver, jbyteArray bytes, jint offset, jint length,
-        jlong timestamp) {
+        jlong timestampInNanoseconds) {
     env->GetByteArrayRegion(bytes, offset, length, jni_midi_buffer);
-    AAPMIDIDEVICE_INSTANCE->processMessage(
-            reinterpret_cast<uint8_t *>(jni_midi_buffer), 0, length, timestamp);
+    AAPMIDIDEVICE_INSTANCE->processMidiInput(
+            reinterpret_cast<uint8_t *>(jni_midi_buffer), 0, length, timestampInNanoseconds);
 }
 
 } // extern "C"

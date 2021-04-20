@@ -55,9 +55,9 @@ class ApplicationModel(context: Context) {
             return
 
         GlobalScope.launch {
-            midiInput.send(byteArrayOf(0x90.toByte(), 0x36, 100), 0, 3)
+            midiInput.send(byteArrayOf(0x90.toByte(), 60, 100), 0, 3)
             delay(1000)
-            midiInput.send(byteArrayOf(0x80.toByte(), 0x36, 0), 0, 3)
+            midiInput.send(byteArrayOf(0x80.toByte(), 60, 0), 0, 3)
         }
     }
 }

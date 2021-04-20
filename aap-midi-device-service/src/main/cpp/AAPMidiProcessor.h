@@ -6,12 +6,6 @@
 
 namespace aapmidideviceservice {
 
-    class AAPOboeAudioCallback : public oboe::AudioStreamDataCallback {
-    public:
-        oboe::DataCallbackResult
-        onAudioReady(oboe::AudioStream *audioStream, void *audioData, int32_t numFrames);
-    };
-
     enum AAPMidiProcessorState {
         AAP_MIDI_PROCESSOR_STATE_CREATED,
         AAP_MIDI_PROCESSOR_STATE_STARTED,
@@ -25,6 +19,9 @@ namespace aapmidideviceservice {
         }
 
         int instance_id;
+        int midi1_in_port;
+        int midi2_in_port;
+        std::vector<int> audio_out_ports{};
         std::vector<int> portSharedMemoryFDs{};
         std::unique_ptr<AndroidAudioPluginBuffer> plugin_buffer;
         std::unique_ptr<void*> buffer_pointers{nullptr};
@@ -39,12 +36,15 @@ namespace aapmidideviceservice {
         int sample_rate{0};
         int plugin_frame_size{1024};
         std::vector<std::unique_ptr<PluginInstanceData>> instance_data_list{};
+        int instrument_instance_id{0};
+
+        void* getAAPMidiInputBuffer();
 
         // Oboe
-        oboe::AudioStreamBuilder builder;
-        AAPOboeAudioCallback callback;
-        std::shared_ptr<oboe::AudioStream> stream;
-        AAPMidiProcessorState state;
+        oboe::AudioStreamBuilder builder{};
+        std::unique_ptr<oboe::AudioStreamDataCallback> callback{};
+        std::shared_ptr<oboe::AudioStream> stream{};
+        AAPMidiProcessorState state{AAP_MIDI_PROCESSOR_STATE_CREATED};
 
     public:
         static AAPMidiProcessor* getInstance();
@@ -57,11 +57,24 @@ namespace aapmidideviceservice {
 
         void activate();
 
-        void processMessage(uint8_t* bytes, size_t offset, size_t length, uint64_t timestamp);
+        void processMidiInput(uint8_t* bytes, size_t offset, size_t length, uint64_t timestampInNanoseconds);
+
+        void callPluginProcess();
+
+        void fillAudioOutput(float* output, size_t numFramesOnAllChannels);
 
         void deactivate();
 
         void terminate();
+    };
+
+    class AAPOboeAudioCallback : public oboe::AudioStreamDataCallback {
+    public:
+        AAPOboeAudioCallback(AAPMidiProcessor *owner) : owner(owner) {}
+
+        AAPMidiProcessor *owner;
+        oboe::DataCallbackResult
+        onAudioReady(oboe::AudioStream *audioStream, void *audioData, int32_t numFrames);
     };
 }
 

@@ -92,8 +92,10 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
     private val pendingInstantiationList = mutableListOf<PluginInformation>()
 
-    override fun onSend(msg: ByteArray?, offset: Int, count: Int, timestamp: Long) =
-        processMessage(msg, offset, count, timestamp)
+    override fun onSend(msg: ByteArray?, offset: Int, count: Int, timestamp: Long) {
+        // We skip too lengthy MIDI buffer, dropped at frame size.
+        processMessage(msg, offset, if (count > frameSize) frameSize else count, timestamp)
+    }
 
     // Initialize basic native parts, without any plugin information.
     private external fun initializeReceiverNative(applicationContext: Context, sampleRate: Int, frameSize: Int)
@@ -101,7 +103,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     // register Binder instance to native host
     private external fun registerPluginService(binder: IBinder, packageName: String, className: String)
     private external fun instantiatePlugin(pluginId: String)
-    private external fun processMessage(msg: ByteArray?, offset: Int, count: Int, timestamp: Long)
+    private external fun processMessage(msg: ByteArray?, offset: Int, count: Int, timestampInNanoseconds: Long)
     private external fun activate()
     private external fun deactivate()
 }
