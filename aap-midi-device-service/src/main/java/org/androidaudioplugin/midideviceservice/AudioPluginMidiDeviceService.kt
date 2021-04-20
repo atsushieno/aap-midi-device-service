@@ -43,6 +43,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     // time as it must be instantiated at MidiDeviceService instantiation time when ApplicationContext
     // is not assigned yet (as onCreate() was not invoked yet!).
     private var sampleRate: Int? = null
+    private var frameSize: Int = 4096
 
     fun initialize() {
         val audioManager = service.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -62,7 +63,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
             activate()
         }
-        initializeReceiverNative(service.applicationContext, sampleRate!!)
+        initializeReceiverNative(service.applicationContext, sampleRate!!, frameSize)
 
         setupDefaultPlugins()
     }
@@ -95,7 +96,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
         processMessage(msg, offset, count, timestamp)
 
     // Initialize basic native parts, without any plugin information.
-    private external fun initializeReceiverNative(applicationContext: Context, sampleRate: Int)
+    private external fun initializeReceiverNative(applicationContext: Context, sampleRate: Int, frameSize: Int)
     private external fun terminateReceiverNative()
     // register Binder instance to native host
     private external fun registerPluginService(binder: IBinder, packageName: String, className: String)

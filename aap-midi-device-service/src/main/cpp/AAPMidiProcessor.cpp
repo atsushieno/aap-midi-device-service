@@ -1,3 +1,5 @@
+#include <sys/mman.h>
+#include <android/sharedmem.h>
 #include <aap/logging.h>
 #include <aap/audio-plugin-host-android.h>
 #include "AAPMidiProcessor.h"
@@ -23,10 +25,11 @@ namespace aapmidideviceservice {
         return oboe::DataCallbackResult::Continue;
     }
 
-    void AAPMidiProcessor::initialize(int32_t sampleRate) {
+    void AAPMidiProcessor::initialize(int32_t sampleRate, int32_t pluginFrameSize) {
         // AAP settings
         host = std::make_unique<aap::PluginHost>(&host_manager);
         sample_rate = sampleRate;
+        plugin_frame_size = pluginFrameSize;
 
         // Oboe configuration
         builder.setDirection(oboe::Direction::Output);
@@ -39,6 +42,20 @@ namespace aapmidideviceservice {
     }
 
     void AAPMidiProcessor::terminate() {
+
+        // free shared memory buffers and close FDs for the instances.
+        // FIXME: shouldn't androidaudioplugin implement this functionality so that we don't have
+        //  to manage it everywhere? It is also super error prone.
+        for (auto& data : instance_data_list) {
+            int numBuffers = data->plugin_buffer->num_buffers;
+            for (int n = 0; n < numBuffers; n++) {
+                munmap(data->buffer_pointers[n], data->plugin_buffer->num_frames * sizeof(float));
+                int fd = data->portSharedMemoryFDs[n];
+                if (fd != 0)
+                    close(fd);
+            }
+        }
+
         host.reset();
     }
 
@@ -71,11 +88,44 @@ namespace aapmidideviceservice {
             return;
         }
 
+        auto pluginInfo = host_manager.getPluginInformation(pluginId);
+        int32_t numPorts = pluginInfo->getNumPorts();
+
         auto instanceId = host->createInstance(pluginId, sample_rate);
-        instance_ids.emplace_back(instanceId);
+        auto instance = host->getInstance(instanceId);
+
+        auto data = std::make_unique<PluginInstanceData>(instanceId, numPorts);
+
+        instance->completeInstantiation();
+
+        auto sharedMemoryExtension = (aap::SharedMemoryExtension*) instance->getExtension(aap::SharedMemoryExtension::URI);
+
+        auto buffer = std::make_unique<AndroidAudioPluginBuffer>();
+        buffer->num_buffers = numPorts;
+        buffer->num_frames = plugin_frame_size;
+
+        size_t memSize = buffer->num_frames * sizeof(float);
+
+        data->instance_id = instanceId;
+        data->plugin_buffer = std::move(buffer);
+        data->plugin_buffer->buffers = data->buffer_pointers.get();
+
+
+        for (int i = 0; i < numPorts; i++) {
+            int fd = ASharedMemory_create(nullptr, memSize);
+            data->portSharedMemoryFDs.emplace_back(fd);
+            sharedMemoryExtension->getPortBufferFDs().emplace_back(fd);
+            data->plugin_buffer->buffers[i] = mmap(nullptr, memSize,
+                                                         PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        }
+
+        instance->prepare(plugin_frame_size, data->plugin_buffer.get());
+
+        instance_data_list.emplace_back(std::move(data));
     }
 
     void AAPMidiProcessor::activate() {
+        // start Oboe stream.
         if (state != AAP_MIDI_PROCESSOR_STATE_CREATED) {
             aap::aprintf("Unexpected call to start() at %s state.",
                          convertStateToText(state).c_str());
@@ -92,10 +142,20 @@ namespace aapmidideviceservice {
 
         stream->requestStart();
 
+        // activate instances
+        for (int i = 0; i < host->getInstanceCount(); i++)
+            host->getInstance(i)->activate();
+
         state = AAP_MIDI_PROCESSOR_STATE_STARTED;
     }
 
     void AAPMidiProcessor::deactivate() {
+
+        // deactivate instances
+        for (int i = 0; i < host->getInstanceCount(); i++)
+            host->getInstance(i)->deactivate();
+
+        // close Oboe stream.
         stream->stop();
         stream->close();
         stream.reset();

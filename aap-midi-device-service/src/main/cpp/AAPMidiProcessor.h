@@ -19,6 +19,17 @@ namespace aapmidideviceservice {
         AAP_MIDI_PROCESSOR_STATE_ERROR
     };
 
+    struct PluginInstanceData {
+        PluginInstanceData(int instanceId, size_t numPorts) : instance_id(instanceId) {
+            buffer_pointers.reset((void**) calloc(sizeof(void*), numPorts));
+        }
+
+        int instance_id;
+        std::vector<int> portSharedMemoryFDs{};
+        std::unique_ptr<AndroidAudioPluginBuffer> plugin_buffer;
+        std::unique_ptr<void*> buffer_pointers{nullptr};
+    };
+
     class AAPMidiProcessor {
         static std::string convertStateToText(AAPMidiProcessorState state);
 
@@ -26,7 +37,8 @@ namespace aapmidideviceservice {
         aap::PluginHostManager host_manager{};
         std::unique_ptr<aap::PluginHost> host{nullptr};
         int sample_rate{0};
-        std::vector<int32_t> instance_ids{};
+        int plugin_frame_size{1024};
+        std::vector<std::unique_ptr<PluginInstanceData>> instance_data_list{};
 
         // Oboe
         oboe::AudioStreamBuilder builder;
@@ -37,7 +49,7 @@ namespace aapmidideviceservice {
     public:
         static AAPMidiProcessor* getInstance();
 
-        void initialize(int32_t sampleRate);
+        void initialize(int32_t sampleRate, int32_t frameSize);
 
         static void registerPluginService(const aap::AudioPluginServiceConnection service);
 
