@@ -76,9 +76,13 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
         setupDefaultPlugins()
     }
 
+    private var closed = false
     override fun close() {
-        deactivate()
-        terminateReceiverNative()
+        if (!closed) {
+            deactivate()
+            terminateReceiverNative()
+            closed = true
+        }
     }
 
     private fun connectService(packageName: String, className: String) {

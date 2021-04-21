@@ -6,10 +6,14 @@
 
 namespace aapmidideviceservice {
 
-    AAPMidiProcessor processor{};
+    std::unique_ptr<AAPMidiProcessor> processor{};
 
     AAPMidiProcessor* AAPMidiProcessor::getInstance() {
-        return &processor;
+        return processor.get();
+    }
+
+    void AAPMidiProcessor::resetInstance() {
+        processor = std::make_unique<AAPMidiProcessor>();
     }
 
     oboe::DataCallbackResult AAPMidiProcessor::OboeCallback::onAudioReady(
@@ -32,6 +36,9 @@ namespace aapmidideviceservice {
         sample_rate = sampleRate;
         plugin_frame_size = pluginFrameSize;
         channel_count = audioOutChannelCount;
+
+        aap_input_ring_buffer = zix_ring_new(pluginFrameSize * audioOutChannelCount);
+        zix_ring_mlock(aap_input_ring_buffer);
 
         // Oboe configuration
         builder.setDirection(oboe::Direction::Output);
@@ -57,8 +64,11 @@ namespace aapmidideviceservice {
                 int fd = data->portSharedMemoryFDs[n];
                 if (fd != 0)
                     close(fd);
+                data->portSharedMemoryFDs[n] = 0;
             }
         }
+
+        zix_ring_free(aap_input_ring_buffer);
 
         host.reset();
     }
@@ -67,8 +77,10 @@ namespace aapmidideviceservice {
         switch (stateValue) {
             case AAP_MIDI_PROCESSOR_STATE_CREATED:
                 return "CREATED";
-            case AAP_MIDI_PROCESSOR_STATE_STARTED:
-                return "STARTED";
+            case AAP_MIDI_PROCESSOR_STATE_ACTIVE:
+                return "ACTIVE";
+            case AAP_MIDI_PROCESSOR_STATE_INACTIVE:
+                return "INACTIVE";
             case AAP_MIDI_PROCESSOR_STATE_STOPPED:
                 return "STOPPED";
             case AAP_MIDI_PROCESSOR_STATE_ERROR:
@@ -151,11 +163,15 @@ namespace aapmidideviceservice {
     // Activate audio processing. CPU-intensive operations happen from here.
     void AAPMidiProcessor::activate() {
         // start Oboe stream.
-        if (state != AAP_MIDI_PROCESSOR_STATE_CREATED) {
-            aap::aprintf("Unexpected call to start() at %s state.",
-                         convertStateToText(state).c_str());
-            state = AAP_MIDI_PROCESSOR_STATE_ERROR;
-            return;
+        switch (state) {
+            case AAP_MIDI_PROCESSOR_STATE_CREATED:
+            case AAP_MIDI_PROCESSOR_STATE_INACTIVE:
+                break;
+            default:
+                aap::aprintf("Unexpected call to start() at %s state.",
+                             convertStateToText(state).c_str());
+                state = AAP_MIDI_PROCESSOR_STATE_ERROR;
+                return;
         }
 
         oboe::Result result = builder.openStream(stream);
@@ -171,13 +187,13 @@ namespace aapmidideviceservice {
         for (int i = 0; i < host->getInstanceCount(); i++)
             host->getInstance(i)->activate();
 
-        state = AAP_MIDI_PROCESSOR_STATE_STARTED;
+        state = AAP_MIDI_PROCESSOR_STATE_ACTIVE;
     }
 
     // Deactivate audio processing. CPU-intensive operations stop here.
     void AAPMidiProcessor::deactivate() {
 
-        // deactivate instances
+        // deactivate AAP instances
         for (int i = 0; i < host->getInstanceCount(); i++)
             host->getInstance(i)->deactivate();
 
@@ -186,7 +202,7 @@ namespace aapmidideviceservice {
         stream->close();
         stream.reset();
 
-        state = AAP_MIDI_PROCESSOR_STATE_STOPPED;
+        state = AAP_MIDI_PROCESSOR_STATE_INACTIVE;
     }
 
     // Called by Oboe audio callback implementation. It calls process.

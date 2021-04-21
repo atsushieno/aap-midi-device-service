@@ -3,12 +3,14 @@
 #define AAP_MIDI_DEVICE_SERVICE_AAPMIDIPROCESSOR_H
 
 #include <oboe/Oboe.h>
+#include <zix/ring.h>
 
 namespace aapmidideviceservice {
 
     enum AAPMidiProcessorState {
         AAP_MIDI_PROCESSOR_STATE_CREATED,
-        AAP_MIDI_PROCESSOR_STATE_STARTED,
+        AAP_MIDI_PROCESSOR_STATE_ACTIVE,
+        AAP_MIDI_PROCESSOR_STATE_INACTIVE,
         AAP_MIDI_PROCESSOR_STATE_STOPPED,
         AAP_MIDI_PROCESSOR_STATE_ERROR
     };
@@ -57,8 +59,10 @@ namespace aapmidideviceservice {
         std::shared_ptr<oboe::AudioStream> stream{};
         AAPMidiProcessorState state{AAP_MIDI_PROCESSOR_STATE_CREATED};
 
+        ZixRing *aap_input_ring_buffer{nullptr};
     public:
         static AAPMidiProcessor* getInstance();
+        static void resetInstance();
 
         void initialize(int32_t sampleRate, int32_t frameSize, int32_t channelCount);
 

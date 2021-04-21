@@ -29,6 +29,8 @@ extern "C" {
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_initializeReceiverNative(
         JNIEnv *env, jobject midiReceiver, jobject applicationContext, jint sampleRate, jint frameSize, jint audioOutChannelCount) {
+    aapmidideviceservice::AAPMidiProcessor::resetInstance();
+
     AAPMIDIDEVICE_INSTANCE->initialize(sampleRate, frameSize, audioOutChannelCount);
 }
 
@@ -45,9 +47,9 @@ JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPlugin
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_terminateReceiverNative(
         JNIEnv *env, jobject midiReceiver) {
-    aap::unset_application_context(env);
-
     AAPMIDIDEVICE_INSTANCE->terminate();
+
+    aap::unset_application_context(env);
 }
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_activate(

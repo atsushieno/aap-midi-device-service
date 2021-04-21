@@ -26,26 +26,24 @@ fun App() {
 
     AAPMidiDeviceServiceTheme {
         // FIXME: maybe we should remove this hacky state variable
-        var midiManagerInitialized by remember { mutableStateOf(model.midiManagerInitialized) }
+        var midiManagerInitializedState by remember { mutableStateOf(model.midiManagerInitialized) }
 
         Surface(color = MaterialTheme.colors.background) {
             Column {
                 AvailablePlugins(onItemClick = { plugin -> model.specifiedInstrument = plugin }, plugins)
                 Row {
-                    if (midiManagerInitialized)
+                    if (midiManagerInitializedState)
                         Button(modifier = Modifier.padding(2.dp),
                             onClick = {
-                                // FIXME: currently something is incorrectly reused and caused crash,
-                                //  so I explicitly keep it non-reusable. This should be fixed.
-                                //midiManagerInitialized = false
                                 model.terminateMidi()
+                                midiManagerInitializedState = false
                             }) {
                             Text("Stop MIDI Service")
                         }
                     else
                         Button(modifier = Modifier.padding(2.dp),
                             onClick = {
-                                midiManagerInitialized = true
+                                midiManagerInitializedState = true
                                 model.initializeMidi()
                             }) {
                             Text("Start MIDI Service")
