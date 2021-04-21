@@ -63,7 +63,6 @@ fun AvailablePlugins(onItemClick: (PluginInformation) -> Unit = {}, instrumentPl
     val small = TextStyle(fontSize = 12.sp)
 
     val state by remember { mutableStateOf(LazyListState()) }
-    var selectedIndex by remember { mutableStateOf(-1) }
 
     LazyColumn(state = state) {
         itemsIndexed(instrumentPlugnis, itemContent = { index, plugin ->
@@ -72,10 +71,9 @@ fun AvailablePlugins(onItemClick: (PluginInformation) -> Unit = {}, instrumentPl
             ) {
                 Column(modifier = Modifier
                     .clickable {
-                        selectedIndex = index
                         onItemClick(plugin)
                     }
-                    .border(if (index == selectedIndex) 2.dp else 0.dp, MaterialTheme.colors.primary)
+                    .border(if (model.instrument.pluginId == plugin.pluginId) 2.dp else 0.dp, MaterialTheme.colors.primary)
                     .weight(1f)) {
                     Text(plugin.displayName)
                     Text(plugin.packageName, style = small)

@@ -6,6 +6,7 @@ import android.media.midi.MidiDeviceService
 import android.media.midi.MidiDeviceStatus
 import android.media.midi.MidiReceiver
 import android.os.IBinder
+import androidx.preference.Preference
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import org.androidaudioplugin.*
@@ -51,7 +52,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     private var sampleRate: Int? = null
     private var oboeFrameSize: Int? = null
     private var audioOutChannelCount: Int = 2
-    private var aapFrameSize = 4096
+    private var aapFrameSize = 1024
 
     fun initialize() {
         val audioManager = service.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -69,6 +70,10 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
             for (i in pendingInstantiationList)
                 if (i.packageName == connection.serviceInfo.packageName && i.localName == connection.serviceInfo.className)
                     instantiatePlugin(i.pluginId!!)
+
+            // save instrument as the last used one, so that it can be the default.
+            val sp = service.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
+            sp.edit().putString(PREFERENCE_KRY_PLUGIN_ID, model.instrument.pluginId).apply()
 
             activate()
         }

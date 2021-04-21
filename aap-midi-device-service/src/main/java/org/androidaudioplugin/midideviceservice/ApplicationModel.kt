@@ -7,6 +7,7 @@ import android.media.midi.MidiDeviceInfo
 import android.media.midi.MidiInputPort
 import android.media.midi.MidiManager
 import android.media.midi.MidiManager.OnDeviceOpenedListener
+import androidx.preference.Preference
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -19,6 +20,9 @@ internal lateinit var applicationContextForModel: Context
 val model: ApplicationModel
     get() = ApplicationModel.instance
 
+internal const val SHARED_PREFERENCE_KEY = "aap-midi-device-service-preferences"
+internal const val PREFERENCE_KRY_PLUGIN_ID = "last_used_plugin_id"
+
 class ApplicationModel(private val packageName: String, context: Context) {
     companion object {
         val instance = ApplicationModel(applicationContextForModel.packageName, applicationContextForModel)
@@ -29,11 +33,23 @@ class ApplicationModel(private val packageName: String, context: Context) {
     val pluginServices = AudioPluginHostHelper.queryAudioPluginServices(context.applicationContext)
 
     var midiManagerInitialized = false
-    var specifiedInstrument: PluginInformation? = null
+    var specifiedInstrument: PluginInformation? = getLastUsedInstrument(context)
+
+    private fun getLastUsedInstrument(ctx: Context): PluginInformation? {
+        val sp = ctx.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
+        val pluginId = sp.getString(PREFERENCE_KRY_PLUGIN_ID, null)
+        if (pluginId != null)
+            return pluginServices.flatMap { s -> s.plugins}.firstOrNull { p -> p.pluginId == pluginId }
+        return null
+    }
 
     private val allPlugins: Array<PluginInformation> = AudioPluginHostHelper.queryAudioPlugins(context)
+
     val instrument: PluginInformation
-        get() = specifiedInstrument ?: allPlugins.firstOrNull { p -> p.packageName == packageName && isInstrument(p) } ?: allPlugins.first { p -> isInstrument(p) }
+        get() = specifiedInstrument ?:
+            allPlugins.firstOrNull { p -> p.packageName == packageName && isInstrument(p) } ?:
+            allPlugins.first { p -> isInstrument(p) }
+
     private fun isInstrument(info: PluginInformation) =
         info.category?.contains(PluginInformation.PRIMARY_CATEGORY_INSTRUMENT) ?: info.category?.contains("Synth") ?: false
 
