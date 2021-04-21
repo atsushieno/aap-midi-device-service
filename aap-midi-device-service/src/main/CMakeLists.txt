@@ -14,9 +14,11 @@ include_directories (${OBOE_DIR}/include)
 set (aapmidideviceservice_SOURCES
 	"cpp/aapmidideviceservice-jni.cpp"
 	"cpp/AAPMidiProcessor.cpp"
+	"cpp/zix/ring.cpp"
 	)
 
 set (aapmidideviceservice_INCLUDES
+		cpp
 		${AAPDIR}/native/plugin-api/include
 		${AAPDIR}/native/androidaudioplugin/core/include
 		${AAPDIR}/native/androidaudioplugin/android/include
