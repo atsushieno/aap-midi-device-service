@@ -46,7 +46,7 @@ namespace aapmidideviceservice {
         aap::PluginHostManager host_manager{};
         std::unique_ptr<aap::PluginHost> host{nullptr};
         int sample_rate{0};
-        int plugin_frame_size{1024};
+        int aap_frame_size{4096};
         int channel_count{2};
         std::vector<std::unique_ptr<PluginInstanceData>> instance_data_list{};
         int instrument_instance_id{0};
@@ -60,11 +60,12 @@ namespace aapmidideviceservice {
         AAPMidiProcessorState state{AAP_MIDI_PROCESSOR_STATE_CREATED};
 
         ZixRing *aap_input_ring_buffer{nullptr};
+        float *interleave_buffer{nullptr};
     public:
         static AAPMidiProcessor* getInstance();
         static void resetInstance();
 
-        void initialize(int32_t sampleRate, int32_t frameSize, int32_t channelCount);
+        void initialize(int32_t sampleRate, int32_t oboeFrameSize, int32_t channelCount, int32_t aapFrameSize);
 
         static void registerPluginService(const aap::AudioPluginServiceConnection service);
 
@@ -76,7 +77,7 @@ namespace aapmidideviceservice {
 
         void callPluginProcess();
 
-        void fillAudioOutput(float* output, size_t numFramesOnAllChannels);
+        void fillAudioOutput();
 
         void deactivate();
 

@@ -18,27 +18,36 @@ namespace aapmidideviceservice {
 
     oboe::DataCallbackResult AAPMidiProcessor::OboeCallback::onAudioReady(
             oboe::AudioStream *audioStream, void *audioData, int32_t oboeNumFrames) {
-        owner->callPluginProcess();
 
-        size_t numFramesByOboePerChannel = oboeNumFrames / owner->channel_count;
-        size_t numFramesByAAP = owner->plugin_frame_size;
-        size_t numFrames =
-                numFramesByOboePerChannel > numFramesByAAP ? numFramesByAAP : numFramesByOboePerChannel;
+        // Oboe audio buffer request can be extremely small (like < 10 frames).
+        //  Therefore we don't call plugin process() every time (as it costs hundreds of
+        //  microseconds). Instead, we make use of ring buffer, call plugin process()
+        //  only once in a while (when our ring buffer starves).
+        //
+        //  Each plugin process is still expected to fit within a callback time slice,
+        //  so we still call plugin process() within the callback.
 
-        owner->fillAudioOutput(static_cast<float *>(audioData), numFrames);
+        if (zix_ring_read_space(owner->aap_input_ring_buffer) < oboeNumFrames) {
+            owner->callPluginProcess();
+            owner->fillAudioOutput();
+        }
 
+        zix_ring_read(owner->aap_input_ring_buffer, audioData, oboeNumFrames * sizeof(float));
+
+        // FIXME: can we terminate it when it goes quiet?
         return oboe::DataCallbackResult::Continue;
     }
 
-    void AAPMidiProcessor::initialize(int32_t sampleRate, int32_t pluginFrameSize, int32_t audioOutChannelCount) {
+    void AAPMidiProcessor::initialize(int32_t sampleRate, int32_t oboeFrameSize, int32_t audioOutChannelCount, int32_t aapFrameSize) {
         // AAP settings
         host = std::make_unique<aap::PluginHost>(&host_manager);
         sample_rate = sampleRate;
-        plugin_frame_size = pluginFrameSize;
+        aap_frame_size = aapFrameSize;
         channel_count = audioOutChannelCount;
 
-        aap_input_ring_buffer = zix_ring_new(pluginFrameSize * audioOutChannelCount);
+        aap_input_ring_buffer = zix_ring_new(aap_frame_size * audioOutChannelCount * sizeof(float) * 2); // twice as much as aap buffer size
         zix_ring_mlock(aap_input_ring_buffer);
+        interleave_buffer = (float*) calloc(sizeof(float), aapFrameSize * audioOutChannelCount);
 
         // Oboe configuration
         builder.setDirection(oboe::Direction::Output);
@@ -46,7 +55,7 @@ namespace aapmidideviceservice {
         builder.setSharingMode(oboe::SharingMode::Exclusive);
         builder.setFormat(oboe::AudioFormat::Float);
         builder.setChannelCount(oboe::ChannelCount::Stereo);
-        builder.setBufferCapacityInFrames(pluginFrameSize * audioOutChannelCount);
+        builder.setBufferCapacityInFrames(oboeFrameSize * audioOutChannelCount);
 
         callback = std::make_unique<OboeCallback>(this);
         builder.setDataCallback(callback.get());
@@ -69,6 +78,7 @@ namespace aapmidideviceservice {
         }
 
         zix_ring_free(aap_input_ring_buffer);
+        free(interleave_buffer);
 
         host.reset();
     }
@@ -130,7 +140,7 @@ namespace aapmidideviceservice {
 
         auto buffer = std::make_unique<AndroidAudioPluginBuffer>();
         buffer->num_buffers = numPorts;
-        buffer->num_frames = plugin_frame_size;
+        buffer->num_frames = aap_frame_size;
 
         size_t memSize = buffer->num_frames * sizeof(float);
 
@@ -153,9 +163,11 @@ namespace aapmidideviceservice {
                 data->midi2_in_port = i;
             else if (port->getContentType() == aap::AAP_CONTENT_TYPE_MIDI && port->getPortDirection() == aap::AAP_PORT_DIRECTION_INPUT)
                 data->midi1_in_port = i;
+            else if (port->hasProperty(AAP_PORT_DEFAULT))
+                *((float*) data->plugin_buffer->buffers[i]) = port->getDefaultValue();
         }
 
-        instance->prepare(plugin_frame_size, data->plugin_buffer.get());
+        instance->prepare(aap_frame_size, data->plugin_buffer.get());
 
         instance_data_list.emplace_back(std::move(data));
     }
@@ -213,10 +225,12 @@ namespace aapmidideviceservice {
     }
 
     // Called by Oboe audio callback implementation. It is called after AAP processing, and
-    //  fill the audio outputs, interleaving the results.
-    void AAPMidiProcessor::fillAudioOutput(float* outputData, size_t numFrames) {
+    //  fill the audio outputs into an intermediate buffer, interleaving the results,
+    //  then copied into the ring buffer.
+    void AAPMidiProcessor::fillAudioOutput() {
         // FIXME: the final processing result should not be the instrument instance output buffer
         //  but should be chained output result. Right now we don't support chaining.
+
         for (auto &data : instance_data_list) {
             if (data->instance_id == instrument_instance_id) {
                 int numPorts = data->audio_out_ports.size();
@@ -224,11 +238,13 @@ namespace aapmidideviceservice {
                     int portIndex = data->audio_out_ports[p];
                     auto src = (float*) data->plugin_buffer->buffers[portIndex];
                     // We have to interleave separate port outputs to copy...
-                    for (int i = 0; i < numFrames; i++)
-                        outputData[i * numPorts + p] = src[i];
+                    for (int i = 0; i < aap_frame_size; i++)
+                        interleave_buffer[i * numPorts + p] = src[i];
                 }
             }
         }
+
+        zix_ring_write(aap_input_ring_buffer, interleave_buffer, channel_count * aap_frame_size * sizeof(float));
     }
 
     int getTicksFromNanoseconds(int deltaTimeSpec, uint64_t value) {

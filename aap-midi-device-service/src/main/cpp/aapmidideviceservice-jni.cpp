@@ -28,10 +28,10 @@ extern "C" {
 #define AAPMIDIDEVICE_INSTANCE aapmidideviceservice::AAPMidiProcessor::getInstance()
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_initializeReceiverNative(
-        JNIEnv *env, jobject midiReceiver, jobject applicationContext, jint sampleRate, jint frameSize, jint audioOutChannelCount) {
+        JNIEnv *env, jobject midiReceiver, jobject applicationContext, jint sampleRate, jint oboeFrameSize, jint audioOutChannelCount, jint aapFrameSize) {
     aapmidideviceservice::AAPMidiProcessor::resetInstance();
 
-    AAPMIDIDEVICE_INSTANCE->initialize(sampleRate, frameSize, audioOutChannelCount);
+    AAPMIDIDEVICE_INSTANCE->initialize(sampleRate, oboeFrameSize, audioOutChannelCount, aapFrameSize);
 }
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_registerPluginService(

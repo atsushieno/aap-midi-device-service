@@ -49,13 +49,14 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     // time as it must be instantiated at MidiDeviceService instantiation time when ApplicationContext
     // is not assigned yet (as onCreate() was not invoked yet!).
     private var sampleRate: Int? = null
-    private var frameSize: Int? = null
+    private var oboeFrameSize: Int? = null
     private var audioOutChannelCount: Int = 2
+    private var aapFrameSize = 4096
 
     fun initialize() {
         val audioManager = service.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         sampleRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toInt() ?: 44100
-        frameSize = (audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toInt() ?: 1024)
+        oboeFrameSize = (audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toInt() ?: 1024)
 
         serviceConnector = AudioPluginServiceConnector(service.applicationContext)
 
@@ -71,7 +72,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
             activate()
         }
-        initializeReceiverNative(service.applicationContext, sampleRate!!, frameSize!!, audioOutChannelCount)
+        initializeReceiverNative(service.applicationContext, sampleRate!!, oboeFrameSize!!, audioOutChannelCount, aapFrameSize)
 
         setupDefaultPlugins()
     }
@@ -102,11 +103,11 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
     override fun onSend(msg: ByteArray?, offset: Int, count: Int, timestamp: Long) {
         // We skip too lengthy MIDI buffer, dropped at frame size.
-        processMessage(msg, offset, if (count > frameSize!!) frameSize!! else count, timestamp)
+        processMessage(msg, offset, if (count > aapFrameSize) aapFrameSize else count, timestamp)
     }
 
     // Initialize basic native parts, without any plugin information.
-    private external fun initializeReceiverNative(applicationContext: Context, sampleRate: Int, frameSize: Int, audioOutChannelCount: Int)
+    private external fun initializeReceiverNative(applicationContext: Context, sampleRate: Int, oboeFrameSize: Int, audioOutChannelCount: Int, aapFrameSize: Int)
     private external fun terminateReceiverNative()
     // register Binder instance to native host
     private external fun registerPluginService(binder: IBinder, packageName: String, className: String)
