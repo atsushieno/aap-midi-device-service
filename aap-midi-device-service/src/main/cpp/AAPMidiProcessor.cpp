@@ -16,20 +16,45 @@ namespace aapmidideviceservice {
         processor = std::make_unique<AAPMidiProcessor>();
     }
 
+    long last_delay_value = 0, worst_delay_value = 0;
+    long success_count = 0, failure_count = 0;
+
     oboe::DataCallbackResult AAPMidiProcessor::OboeCallback::onAudioReady(
             oboe::AudioStream *audioStream, void *audioData, int32_t oboeNumFrames) {
 
+        if (owner->state != AAP_MIDI_PROCESSOR_STATE_ACTIVE)
+            // it is not supposed to process audio at this state.
+            // It is still possible that it gets called between Oboe requestStart()
+            // and updating the state, so do not error out here.
+            return oboe::DataCallbackResult::Continue;
+
         // Oboe audio buffer request can be extremely small (like < 10 frames).
-        //  Therefore we don't call plugin process() every time (as it costs hundreds of
-        //  microseconds). Instead, we make use of ring buffer, call plugin process()
+        //  Therefore we don't call plugin process() every time (as it could cost hundreds
+        //  of microseconds). Instead, we make use of ring buffer, call plugin process()
         //  only once in a while (when our ring buffer starves).
         //
         //  Each plugin process is still expected to fit within a callback time slice,
         //  so we still call plugin process() within the callback.
 
         if (zix_ring_read_space(owner->aap_input_ring_buffer) < oboeNumFrames) {
+            // observer performance. (start)
+            struct timespec ts_start, ts_end;
+            clock_gettime(CLOCK_REALTIME, &ts_start);
+
             owner->callPluginProcess();
+
+            // observer performance. (end)
+            clock_gettime(CLOCK_REALTIME, &ts_end);
+            long diff = (ts_end.tv_sec - ts_start.tv_sec) * 1000000000 + ts_end.tv_nsec - ts_start.tv_nsec;
+            if (diff > 1000000) { // you took 1msec!?
+                last_delay_value = diff;
+                if (diff > worst_delay_value)
+                    worst_delay_value = diff;
+                failure_count++;
+            } else success_count++;
+
             owner->fillAudioOutput();
+
         }
 
         zix_ring_read(owner->aap_input_ring_buffer, audioData, oboeNumFrames * sizeof(float));
@@ -55,7 +80,8 @@ namespace aapmidideviceservice {
         builder.setSharingMode(oboe::SharingMode::Exclusive);
         builder.setFormat(oboe::AudioFormat::Float);
         builder.setChannelCount(oboe::ChannelCount::Stereo);
-        builder.setBufferCapacityInFrames(oboeFrameSize * audioOutChannelCount);
+        builder.setBufferCapacityInFrames(oboeFrameSize);
+        builder.setContentType(oboe::ContentType::Music);
 
         callback = std::make_unique<OboeCallback>(this);
         builder.setDataCallback(callback.get());
@@ -204,6 +230,12 @@ namespace aapmidideviceservice {
 
     // Deactivate audio processing. CPU-intensive operations stop here.
     void AAPMidiProcessor::deactivate() {
+        if (state != AAP_MIDI_PROCESSOR_STATE_ACTIVE) {
+            aap::aprintf("Unexpected call to deactivate() at %s state.",
+                         convertStateToText(state).c_str());
+            state = AAP_MIDI_PROCESSOR_STATE_ERROR;
+            return;
+        }
 
         // deactivate AAP instances
         for (int i = 0; i < host->getInstanceCount(); i++)
@@ -220,8 +252,7 @@ namespace aapmidideviceservice {
     // Called by Oboe audio callback implementation. It calls process.
     void AAPMidiProcessor::callPluginProcess() {
         for (auto &data : instance_data_list)
-            if (data->instance_id == instrument_instance_id)
-                host->getInstance(instrument_instance_id)->process(data->plugin_buffer.get(), 1000000000);
+            host->getInstance(data->instance_id)->process(data->plugin_buffer.get(), 1000000000);
     }
 
     // Called by Oboe audio callback implementation. It is called after AAP processing, and
@@ -270,13 +301,16 @@ namespace aapmidideviceservice {
 
     void* AAPMidiProcessor::getAAPMidiInputBuffer() {
         for (auto &data : instance_data_list)
-            if (data->instance_id == instrument_instance_id)
-                return data->plugin_buffer->buffers[data->midi1_in_port];
+            if (data->instance_id == instrument_instance_id) {
+                auto portIndex = data->midi2_in_port >= 0 ? data->midi2_in_port : data->midi1_in_port;
+                return data->plugin_buffer->buffers[portIndex];
+            }
         return nullptr;
     }
 
     void AAPMidiProcessor::processMidiInput(uint8_t* bytes, size_t offset, size_t length, uint64_t timestampInNanoseconds) {
-        //aap::aprintf("!!! AAPMIDI: processMessage() !!!: %d %d %d", bytes[0], bytes [1], length > 2 ? bytes[2] : 0);
+        // FIXME: we need complete revamp to support MIDI buffering between process() calls, and
+        //  support MIDI 2.0 protocols.
         int ticks = getTicksFromNanoseconds(192, timestampInNanoseconds);
 
         auto dst = (uint8_t*) getAAPMidiInputBuffer();

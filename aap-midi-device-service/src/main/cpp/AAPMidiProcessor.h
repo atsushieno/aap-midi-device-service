@@ -21,8 +21,8 @@ namespace aapmidideviceservice {
         }
 
         int instance_id;
-        int midi1_in_port;
-        int midi2_in_port;
+        int midi1_in_port{-1};
+        int midi2_in_port{-1};
         std::vector<int> audio_out_ports{};
         std::vector<int> portSharedMemoryFDs{};
         std::unique_ptr<AndroidAudioPluginBuffer> plugin_buffer;
