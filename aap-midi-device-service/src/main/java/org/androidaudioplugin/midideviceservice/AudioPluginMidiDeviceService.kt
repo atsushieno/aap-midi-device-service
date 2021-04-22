@@ -71,10 +71,6 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
                 if (i.packageName == connection.serviceInfo.packageName && i.localName == connection.serviceInfo.className)
                     instantiatePlugin(i.pluginId!!)
 
-            // save instrument as the last used one, so that it can be the default.
-            val sp = service.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
-            sp.edit().putString(PREFERENCE_KRY_PLUGIN_ID, model.instrument.pluginId).apply()
-
             activate()
         }
         initializeReceiverNative(service.applicationContext, sampleRate!!, oboeFrameSize!!, audioOutChannelCount, aapFrameSize)

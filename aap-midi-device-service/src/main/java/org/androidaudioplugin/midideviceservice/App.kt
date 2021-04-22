@@ -1,5 +1,6 @@
 package org.androidaudioplugin.midideviceservice
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,10 +49,13 @@ fun App() {
                             }) {
                             Text("Start MIDI Service")
                         }
+                }
+                Row {
                     Button(modifier = Modifier.padding(2.dp),
                         onClick = { model.playNote() }) {
                         Text("Play")
                     }
+                    
                 }
             }
         }
@@ -63,6 +67,7 @@ fun AvailablePlugins(onItemClick: (PluginInformation) -> Unit = {}, instrumentPl
     val small = TextStyle(fontSize = 12.sp)
 
     val state by remember { mutableStateOf(LazyListState()) }
+    var selectedIndex by remember { mutableStateOf(if (model.instrument != null) instrumentPlugnis.indexOf(model.instrument) else -1) }
 
     LazyColumn(state = state) {
         itemsIndexed(instrumentPlugnis, itemContent = { index, plugin ->
@@ -72,8 +77,13 @@ fun AvailablePlugins(onItemClick: (PluginInformation) -> Unit = {}, instrumentPl
                 Column(modifier = Modifier
                     .clickable {
                         onItemClick(plugin)
+                        selectedIndex = index
+
+                        // save instrument as the last used one, so that it can be the default.
+                        val sp = applicationContextForModel.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
+                        sp.edit().putString(PREFERENCE_KRY_PLUGIN_ID, model.instrument.pluginId).apply()
                     }
-                    .border(if (model.instrument.pluginId == plugin.pluginId) 2.dp else 0.dp, MaterialTheme.colors.primary)
+                    .border(if (index == selectedIndex) 2.dp else 0.dp, MaterialTheme.colors.primary)
                     .weight(1f)) {
                     Text(plugin.displayName)
                     Text(plugin.packageName, style = small)

@@ -33,7 +33,7 @@ class ApplicationModel(private val packageName: String, context: Context) {
     val pluginServices = AudioPluginHostHelper.queryAudioPluginServices(context.applicationContext)
 
     var midiManagerInitialized = false
-    var specifiedInstrument: PluginInformation? = getLastUsedInstrument(context)
+    var specifiedInstrument: PluginInformation? = null
 
     private fun getLastUsedInstrument(ctx: Context): PluginInformation? {
         val sp = ctx.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
@@ -88,5 +88,9 @@ class ApplicationModel(private val packageName: String, context: Context) {
             delay(1000)
             midiInput.send(byteArrayOf(0x80.toByte(), 60, 0), 0, 3)
         }
+    }
+
+    init {
+        specifiedInstrument = getLastUsedInstrument(context)
     }
 }
