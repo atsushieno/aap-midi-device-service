@@ -281,12 +281,10 @@ namespace aapmidideviceservice {
     }
 
     int getTicksFromNanoseconds(int deltaTimeSpec, uint64_t value) {
-        // BPM 120 = 120 quarter notes per minute.
-        // 96 ticks per second when deltaTimeSpec is 192
-        int tempo = 500000; // BPM 120
-        double seconds = value / 1000000000.0;
-        auto ticksPerNanoSecond = seconds * (deltaTimeSpec / 4) * tempo / 60;
-        return (int) ticksPerNanoSecond;
+        double bpm = 120.0;
+        auto ticksPerSec = deltaTimeSpec / (bpm / 60);
+        auto ret = ticksPerSec * value / 1000000000;
+        return (int) ret;
     }
 
     int set7BitEncodedLength(uint8_t* buffer, int value) {
