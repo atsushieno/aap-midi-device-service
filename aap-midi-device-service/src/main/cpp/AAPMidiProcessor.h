@@ -61,6 +61,7 @@ namespace aapmidideviceservice {
 
         ZixRing *aap_input_ring_buffer{nullptr};
         float *interleave_buffer{nullptr};
+        struct timespec last_aap_process_time{};
     public:
         static AAPMidiProcessor* getInstance();
         static void resetInstance();
@@ -73,7 +74,7 @@ namespace aapmidideviceservice {
 
         void activate();
 
-        void processMidiInput(uint8_t* bytes, size_t offset, size_t length, uint64_t timestampInNanoseconds);
+        void processMidiInput(uint8_t* bytes, size_t offset, size_t length, int64_t timestampInNanoseconds);
 
         void callPluginProcess();
 

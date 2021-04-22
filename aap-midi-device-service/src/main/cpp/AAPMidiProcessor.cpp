@@ -42,6 +42,8 @@ namespace aapmidideviceservice {
             clock_gettime(CLOCK_REALTIME, &ts_start);
 
             owner->callPluginProcess();
+            // recorded for later reference at MIDI message buffering.
+            clock_gettime(CLOCK_REALTIME, &owner->last_aap_process_time);
 
             // observer performance. (end)
             clock_gettime(CLOCK_REALTIME, &ts_end);
@@ -308,10 +310,29 @@ namespace aapmidideviceservice {
         return nullptr;
     }
 
-    void AAPMidiProcessor::processMidiInput(uint8_t* bytes, size_t offset, size_t length, uint64_t timestampInNanoseconds) {
+    void AAPMidiProcessor::processMidiInput(uint8_t* bytes, size_t offset, size_t length, int64_t timestampInNanoseconds) {
+        // This function is invoked every time Android MidiReceiver.onSend() is invoked, immediately.
+        // On the other hand, AAPs don't process MIDI messages immediately, so we have to buffer
+        // them and flush them to the instrument plugin every time process() is invoked.
+        //
+        // Since we don't really know when it is actually processed but have to accurately
+        // pass delta time for each input events, we assign event timecode from
+        // 1) argument timestampInNanoseconds and 2) actual time passed from previous call to
+        // this function.
+        int64_t actualTimestamp = timestampInNanoseconds;
+        struct timespec curtime;
+        clock_gettime(CLOCK_REALTIME, &curtime);
+        // it is 99.999... percent true since audio loop must have started before any MIDI events...
+        if (last_aap_process_time.tv_sec > 0) {
+            int64_t diff = (curtime.tv_sec - last_aap_process_time.tv_sec) * 1000000000 +
+                        curtime.tv_nsec - last_aap_process_time.tv_nsec;
+            auto nanosecondsPerCycle = (int64_t) (1.0 * aap_frame_size / sample_rate * 1000000000);
+            actualTimestamp = (timestampInNanoseconds + diff) % nanosecondsPerCycle;
+        }
+
         // FIXME: we need complete revamp to support MIDI buffering between process() calls, and
         //  support MIDI 2.0 protocols.
-        int ticks = getTicksFromNanoseconds(192, timestampInNanoseconds);
+        int ticks = getTicksFromNanoseconds(192, actualTimestamp);
 
         auto dst = (uint8_t*) getAAPMidiInputBuffer();
         if (dst != nullptr) {

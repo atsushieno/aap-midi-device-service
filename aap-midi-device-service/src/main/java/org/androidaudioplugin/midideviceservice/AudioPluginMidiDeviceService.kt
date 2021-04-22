@@ -104,7 +104,9 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
     override fun onSend(msg: ByteArray?, offset: Int, count: Int, timestamp: Long) {
         // We skip too lengthy MIDI buffer, dropped at frame size.
-        processMessage(msg, offset, if (count > aapFrameSize) aapFrameSize else count, timestamp)
+        val actualSize = if (count > aapFrameSize) aapFrameSize else count
+
+        processMessage(msg, offset, actualSize, timestamp)
     }
 
     // Initialize basic native parts, without any plugin information.
