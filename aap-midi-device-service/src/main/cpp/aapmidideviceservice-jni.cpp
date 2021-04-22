@@ -48,8 +48,6 @@ JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPlugin
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_terminateReceiverNative(
         JNIEnv *env, jobject midiReceiver) {
     AAPMIDIDEVICE_INSTANCE->terminate();
-
-    aap::unset_application_context(env);
 }
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_activate(
