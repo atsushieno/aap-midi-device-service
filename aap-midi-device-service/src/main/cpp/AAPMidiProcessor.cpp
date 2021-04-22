@@ -336,9 +336,10 @@ namespace aapmidideviceservice {
         if (dst != nullptr) {
             auto intBuffer = (int32_t *) (void *) dst;
             intBuffer[0] = 192; // FIXME: assign DeltaTimeSpec from somewhere.
-            intBuffer[1] = length;
             int aapBufferOffset = sizeof(int) + sizeof(int);
-            aapBufferOffset += set7BitEncodedLength(dst + aapBufferOffset, ticks);
+            int lengthLength = set7BitEncodedLength(dst + aapBufferOffset, ticks);
+            aapBufferOffset += lengthLength;
+            intBuffer[1] = length + lengthLength;
             memcpy(dst + aapBufferOffset, bytes + offset, length);
         }
     }
