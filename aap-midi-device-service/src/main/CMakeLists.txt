@@ -25,7 +25,8 @@ set (aapmidideviceservice_INCLUDES
 		)
 
 set (aapmidideviceservice_LIBDIRS
-		"${AAPDIR}/java/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
+		# FIXME: do not depend on `debug` here.
+		"${AAPDIR}/java/androidaudioplugin/build/intermediates/stripped_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
 		)
 
 set (aapmidideviceservice_LIBS
