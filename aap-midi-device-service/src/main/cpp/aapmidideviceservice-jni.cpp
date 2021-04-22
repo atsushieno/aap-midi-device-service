@@ -13,13 +13,14 @@
 // JNI entrypoints
 
 // This returns std::string by value. Do not use for large chunk of strings.
-std::string stringFromJava(JNIEnv *env, jstring s) {
+const char* dupFromJava(JNIEnv *env, jstring s) {
     jboolean isCopy;
     if (!s)
         return "";
     const char *u8 = env->GetStringUTFChars(s, &isCopy);
-    auto ret = std::string{u8};
-    env->ReleaseStringUTFChars(s, u8);
+    auto ret = strdup(u8);
+    if (isCopy)
+        env->ReleaseStringUTFChars(s, u8);
     return ret;
 }
 
@@ -28,7 +29,10 @@ extern "C" {
 #define AAPMIDIDEVICE_INSTANCE aapmidideviceservice::AAPMidiProcessor::getInstance()
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_initializeReceiverNative(
-        JNIEnv *env, jobject midiReceiver, jobject applicationContext, jint sampleRate, jint oboeFrameSize, jint audioOutChannelCount, jint aapFrameSize) {
+        JNIEnv *env, jobject midiReceiver, jobject applicationContext, jobjectArray plugins, jint sampleRate, jint oboeFrameSize, jint audioOutChannelCount, jint aapFrameSize) {
+    aap::set_application_context(env, applicationContext);
+    ((aap::AndroidPluginHostPAL*) aap::getPluginHostPAL())->initializeKnownPlugins(plugins);
+
     aapmidideviceservice::AAPMidiProcessor::resetInstance();
 
     AAPMIDIDEVICE_INSTANCE->initialize(sampleRate, oboeFrameSize, audioOutChannelCount, aapFrameSize);
@@ -36,13 +40,17 @@ JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPlugin
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_registerPluginService(
         JNIEnv *env, jobject midiReceiver, jobject binder, jstring packageName, jstring className) {
-    std::string packageNameString = stringFromJava(env, packageName);
-    std::string classNameString = stringFromJava(env, className);
-    auto binderRef = env->NewGlobalRef(binder);
+    auto packageNamePtr = dupFromJava(env, packageName);
+    std::string packageNameString{packageNamePtr};
+    auto classNamePtr = dupFromJava(env, className);
+    std::string classNameString{classNamePtr};
     auto aiBinder = AIBinder_fromJavaBinder(env, binder);
 
     AAPMIDIDEVICE_INSTANCE->registerPluginService(
-            aap::AudioPluginServiceConnection(packageNameString, classNameString, binderRef, aiBinder));
+            aap::AudioPluginServiceConnection(packageNameString, classNameString, aiBinder));
+
+    free((void *) classNamePtr);
+    free((void *) packageNamePtr);
 }
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_terminateReceiverNative(
@@ -62,9 +70,12 @@ JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPlugin
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_instantiatePlugin(
         JNIEnv *env, jobject midiReceiver, jstring pluginId) {
-    std::string pluginIdString = stringFromJava(env, pluginId);
+    auto pluginIdPtr = dupFromJava(env, pluginId);
+    std::string pluginIdString = pluginIdPtr;
 
     AAPMIDIDEVICE_INSTANCE->instantiatePlugin(pluginIdString);
+
+    free((void *) pluginIdPtr);
 }
 
 jbyte jni_midi_buffer[1024]{};

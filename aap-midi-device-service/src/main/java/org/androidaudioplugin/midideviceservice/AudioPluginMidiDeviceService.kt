@@ -17,9 +17,13 @@ class AudioPluginMidiDeviceService : MidiDeviceService() {
     // The number of ports is not simply adjustable in one code. device_info.xml needs updates too.
     private var midiReceivers: Array<AudioPluginMidiReceiver> = arrayOf(AudioPluginMidiReceiver(this))
 
+    // it does not really do any work but initializing native PAL.
+    private lateinit var host: AudioPluginHost
+
     override fun onCreate() {
         super.onCreate()
 
+        host = AudioPluginHost(applicationContext)
         applicationContextForModel = applicationContext
     }
 
@@ -73,7 +77,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
 
             activate()
         }
-        initializeReceiverNative(service.applicationContext, sampleRate!!, oboeFrameSize!!, audioOutChannelCount, aapFrameSize)
+        initializeReceiverNative(service.applicationContext, model.pluginServices.flatMap { s -> s.plugins}.toTypedArray(), sampleRate!!, oboeFrameSize!!, audioOutChannelCount, aapFrameSize)
 
         setupDefaultPlugins()
     }
@@ -110,7 +114,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     }
 
     // Initialize basic native parts, without any plugin information.
-    private external fun initializeReceiverNative(applicationContext: Context, sampleRate: Int, oboeFrameSize: Int, audioOutChannelCount: Int, aapFrameSize: Int)
+    private external fun initializeReceiverNative(applicationContext: Context, knownPlugins: Array<PluginInformation>, sampleRate: Int, oboeFrameSize: Int, audioOutChannelCount: Int, aapFrameSize: Int)
     private external fun terminateReceiverNative()
     // register Binder instance to native host
     private external fun registerPluginService(binder: IBinder, packageName: String, className: String)
