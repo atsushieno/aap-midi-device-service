@@ -28,6 +28,7 @@ fun App() {
     AAPMidiDeviceServiceTheme {
         // FIXME: maybe we should remove this hacky state variable
         var midiManagerInitializedState by remember { mutableStateOf(model.midiManagerInitialized) }
+        var useMidi2ProtocolState by remember { mutableStateOf(model.useMidi2Protocol) }
 
         Surface(color = MaterialTheme.colors.background) {
             Column {
@@ -51,6 +52,11 @@ fun App() {
                         }
                 }
                 Row {
+                    Checkbox(checked = useMidi2ProtocolState, onCheckedChange = { value ->
+                        model.useMidi2Protocol = value
+                        useMidi2ProtocolState = value
+                    })
+                    Text("Use MIDI 2.0 Protocol")
                     Button(modifier = Modifier.padding(2.dp),
                         onClick = { model.playNote() }) {
                         Text("Play")
@@ -80,10 +86,19 @@ fun AvailablePlugins(onItemClick: (PluginInformation) -> Unit = {}, instrumentPl
                         selectedIndex = index
 
                         // save instrument as the last used one, so that it can be the default.
-                        val sp = applicationContextForModel.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
-                        sp.edit().putString(PREFERENCE_KRY_PLUGIN_ID, model.instrument.pluginId).apply()
+                        val sp = applicationContextForModel.getSharedPreferences(
+                            SHARED_PREFERENCE_KEY,
+                            Context.MODE_PRIVATE
+                        )
+                        sp
+                            .edit()
+                            .putString(PREFERENCE_KRY_PLUGIN_ID, model.instrument.pluginId)
+                            .apply()
                     }
-                    .border(if (index == selectedIndex) 2.dp else 0.dp, MaterialTheme.colors.primary)
+                    .border(
+                        if (index == selectedIndex) 2.dp else 0.dp,
+                        MaterialTheme.colors.primary
+                    )
                     .weight(1f)) {
                     Text(plugin.displayName)
                     Text(plugin.packageName, style = small)

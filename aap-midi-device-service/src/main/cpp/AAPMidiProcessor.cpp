@@ -2,6 +2,7 @@
 #include <android/sharedmem.h>
 #include <aap/logging.h>
 #include <aap/audio-plugin-host-android.h>
+#include <aap/aap-midi2.h>
 #include "AAPMidiProcessor.h"
 
 namespace aapmidideviceservice {
@@ -160,9 +161,19 @@ namespace aapmidideviceservice {
 
         auto data = std::make_unique<PluginInstanceData>(instanceId, numPorts);
 
+        aap::MidiCIExtension midiCIExtData{};
+        if (midi_protocol == CMIDI2_PROTOCOL_TYPE_MIDI2) {
+            AndroidAudioPluginExtension midiCIExtension;
+            midiCIExtension.uri = AAP_MIDI_CI_EXTENSION_URI;
+            midiCIExtData.protocol = CMIDI2_PROTOCOL_TYPE_MIDI2;
+            midiCIExtData.protocolVersion = 0;
+            midiCIExtension.data = &midiCIExtData;
+            instance->addExtension(midiCIExtension);
+        }
+
         instance->completeInstantiation();
 
-        auto sharedMemoryExtension = (aap::SharedMemoryExtension*) instance->getExtension(aap::SharedMemoryExtension::URI);
+        auto sharedMemoryExtension = (aap::SharedMemoryExtension*) instance->getExtension(AAP_SHARED_MEMORY_EXTENSION_URI);
 
         auto buffer = std::make_unique<AndroidAudioPluginBuffer>();
         buffer->num_buffers = numPorts;
@@ -306,13 +317,31 @@ namespace aapmidideviceservice {
         return pos;
     }
 
+    PluginInstanceData* AAPMidiProcessor::getAAPMidiInputData() {
+        for (auto &data : instance_data_list)
+            if (data->instance_id == instrument_instance_id)
+                return data.get();
+        return nullptr;
+    }
+
     void* AAPMidiProcessor::getAAPMidiInputBuffer() {
         for (auto &data : instance_data_list)
             if (data->instance_id == instrument_instance_id) {
-                auto portIndex = data->midi2_in_port >= 0 ? data->midi2_in_port : data->midi1_in_port;
+                int portIndex = (midi_protocol == CMIDI2_PROTOCOL_TYPE_MIDI2 && data->midi2_in_port >= 0) ? data->midi2_in_port : data->midi1_in_port;
                 return data->plugin_buffer->buffers[portIndex];
             }
         return nullptr;
+    }
+
+    void AAPMidiProcessor::setMidiProtocol(int32_t midiProtocol) {
+        if (state != AAP_MIDI_PROCESSOR_STATE_CREATED) {
+            aap::aprintf("Unexpected call to setMidiProtocol() at %s state.",
+                         convertStateToText(state).c_str());
+            state = AAP_MIDI_PROCESSOR_STATE_ERROR;
+            return;
+        }
+
+        midi_protocol = midiProtocol;
     }
 
     void AAPMidiProcessor::processMidiInput(uint8_t* bytes, size_t offset, size_t length, int64_t timestampInNanoseconds) {
@@ -335,19 +364,33 @@ namespace aapmidideviceservice {
             actualTimestamp = (timestampInNanoseconds + diff) % nanosecondsPerCycle;
         }
 
-        // FIXME: we need complete revamp to support MIDI buffering between process() calls, and
-        //  support MIDI 2.0 protocols.
-        int ticks = getTicksFromNanoseconds(192, actualTimestamp);
+        // FIXME: we need complete revamp to support MIDI buffering between process() calls, for
+        //  both MIDI 2.0 and 1.0 messages.
 
-        auto dst = (uint8_t*) getAAPMidiInputBuffer();
-        if (dst != nullptr) {
-            auto intBuffer = (int32_t *) (void *) dst;
-            intBuffer[0] = 192; // FIXME: assign DeltaTimeSpec from somewhere.
-            int aapBufferOffset = sizeof(int) + sizeof(int);
-            int lengthLength = set7BitEncodedLength(dst + aapBufferOffset, ticks);
-            aapBufferOffset += lengthLength;
-            intBuffer[1] = length + lengthLength;
-            memcpy(dst + aapBufferOffset, bytes + offset, length);
+        if (midi_protocol == CMIDI2_PROTOCOL_TYPE_MIDI2) {
+            // process MIDI 2.0 data
+            auto dst = (uint8_t *) getAAPMidiInputBuffer();
+            if (dst != nullptr) {
+                auto intBuffer = (int32_t *) (void *) dst;
+                intBuffer[0] = length;
+                intBuffer[1] = 0; // reserved
+                intBuffer[2] = CMIDI2_PROTOCOL_TYPE_MIDI2; // MIDI 2.0 protocol. It is ignored by LV2 plugins so far though.
+                intBuffer[3] = 0; // reserved
+                memcpy(dst + 32, bytes + offset, length);
+            }
+        } else {
+            int ticks = getTicksFromNanoseconds(192, actualTimestamp);
+
+            auto dst = (uint8_t *) getAAPMidiInputBuffer();
+            if (dst != nullptr) {
+                auto intBuffer = (int32_t *) (void *) dst;
+                intBuffer[0] = 192; // FIXME: assign DeltaTimeSpec from somewhere.
+                int aapBufferOffset = sizeof(int) + sizeof(int);
+                int lengthLength = set7BitEncodedLength(dst + aapBufferOffset, ticks);
+                aapBufferOffset += lengthLength;
+                intBuffer[1] = length + lengthLength;
+                memcpy(dst + aapBufferOffset, bytes + offset, length);
+            }
         }
     }
 }

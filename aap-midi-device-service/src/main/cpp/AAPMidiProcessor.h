@@ -4,6 +4,7 @@
 
 #include <oboe/Oboe.h>
 #include <zix/ring.h>
+#include <cmidi2.h>
 
 namespace aapmidideviceservice {
 
@@ -50,7 +51,9 @@ namespace aapmidideviceservice {
         int channel_count{2};
         std::vector<std::unique_ptr<PluginInstanceData>> instance_data_list{};
         int instrument_instance_id{0};
+        int32_t midi_protocol{CMIDI2_PROTOCOL_TYPE_MIDI1};
 
+        PluginInstanceData* getAAPMidiInputData();
         void* getAAPMidiInputBuffer();
 
         // Oboe
@@ -75,6 +78,8 @@ namespace aapmidideviceservice {
         void activate();
 
         void processMidiInput(uint8_t* bytes, size_t offset, size_t length, int64_t timestampInNanoseconds);
+
+        void setMidiProtocol(int32_t midiProtocol);
 
         void callPluginProcess();
 

@@ -32,6 +32,7 @@ class ApplicationModel(private val packageName: String, context: Context) {
     lateinit var midiInput: MidiInputPort
     val pluginServices = AudioPluginHostHelper.queryAudioPluginServices(context.applicationContext)
 
+    var useMidi2Protocol = false
     var midiManagerInitialized = false
     var specifiedInstrument: PluginInformation? = null
 

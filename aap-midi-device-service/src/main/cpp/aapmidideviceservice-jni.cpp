@@ -29,7 +29,7 @@ extern "C" {
 #define AAPMIDIDEVICE_INSTANCE aapmidideviceservice::AAPMidiProcessor::getInstance()
 
 JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_initializeReceiverNative(
-        JNIEnv *env, jobject midiReceiver, jobject applicationContext, jobjectArray plugins, jint sampleRate, jint oboeFrameSize, jint audioOutChannelCount, jint aapFrameSize) {
+        JNIEnv *env, jobject midiReceiver, jobject applicationContext, jobjectArray plugins, jint sampleRate, jint oboeFrameSize, jint audioOutChannelCount, jint aapFrameSize, jint midiProtocol) {
     aap::set_application_context(env, applicationContext);
     ((aap::AndroidPluginHostPAL*) aap::getPluginHostPAL())->initializeKnownPlugins(plugins);
 
@@ -86,6 +86,11 @@ JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPlugin
     env->GetByteArrayRegion(bytes, offset, length, jni_midi_buffer);
     AAPMIDIDEVICE_INSTANCE->processMidiInput(
             reinterpret_cast<uint8_t *>(jni_midi_buffer), 0, length, timestampInNanoseconds);
+}
+
+JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPluginMidiReceiver_setMidiProtocol(
+        JNIEnv *env, jobject midiReceiver, jint midiProtocol) {
+    AAPMIDIDEVICE_INSTANCE->setMidiProtocol(midiProtocol);
 }
 
 } // extern "C"

@@ -12,6 +12,9 @@ import kotlinx.coroutines.launch
 import org.androidaudioplugin.*
 import kotlin.properties.Delegates
 
+private const val MIDI1_PROTOCOL_TYPE = 1
+private const val MIDI2_PROTOCOL_TYPE = 2
+
 class AudioPluginMidiDeviceService : MidiDeviceService() {
 
     // The number of ports is not simply adjustable in one code. device_info.xml needs updates too.
@@ -71,6 +74,10 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
                 connection.serviceInfo.packageName,
                 connection.serviceInfo.className
             )
+
+            if (model.useMidi2Protocol) // In this app, it must be set before createInstance().
+                setMidiProtocol(MIDI2_PROTOCOL_TYPE)
+
             for (i in pendingInstantiationList)
                 if (i.packageName == connection.serviceInfo.packageName && i.localName == connection.serviceInfo.className)
                     instantiatePlugin(i.pluginId!!)
@@ -122,6 +129,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     // register Binder instance to native host
     private external fun registerPluginService(binder: IBinder, packageName: String, className: String)
     private external fun instantiatePlugin(pluginId: String)
+    private external fun setMidiProtocol(midiProtocol: Int)
     private external fun processMessage(msg: ByteArray?, offset: Int, count: Int, timestampInNanoseconds: Long)
     private external fun activate()
     private external fun deactivate()
