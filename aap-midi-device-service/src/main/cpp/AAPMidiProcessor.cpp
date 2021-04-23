@@ -81,7 +81,7 @@ namespace aapmidideviceservice {
         builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
         builder.setSharingMode(oboe::SharingMode::Exclusive);
         builder.setFormat(oboe::AudioFormat::Float);
-        builder.setChannelCount(oboe::ChannelCount::Stereo);
+        builder.setChannelCount(channel_count);
         builder.setBufferCapacityInFrames(oboeFrameSize);
         builder.setContentType(oboe::ContentType::Music);
 
@@ -127,11 +127,9 @@ namespace aapmidideviceservice {
         return "(UNKNOWN)";
     }
 
-    void AAPMidiProcessor::registerPluginService(const aap::AudioPluginServiceConnection service) {
-        // FIXME: it's better to use dynamic_cast but the actual entity is not a pointer,
-        //  a reference to a field, dynamic_cast<>() returns NULL and this it fails.
-        auto pal = (aap::AndroidPluginHostPAL*) aap::getPluginHostPAL();
-        pal->serviceConnections.emplace_back(service);
+    void AAPMidiProcessor::registerPluginService(std::unique_ptr<aap::AudioPluginServiceConnection> service) {
+        auto pal = dynamic_cast<aap::AndroidPluginHostPAL*>(aap::getPluginHostPAL());
+        pal->serviceConnections.emplace_back(std::move(service));
     }
 
     // Instantiate AAP plugin and proceed up to prepare().

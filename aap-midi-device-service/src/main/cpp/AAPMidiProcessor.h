@@ -68,7 +68,7 @@ namespace aapmidideviceservice {
 
         void initialize(int32_t sampleRate, int32_t oboeFrameSize, int32_t channelCount, int32_t aapFrameSize);
 
-        static void registerPluginService(const aap::AudioPluginServiceConnection service);
+        static void registerPluginService(std::unique_ptr<aap::AudioPluginServiceConnection> service);
 
         void instantiatePlugin(std::string pluginId);
 

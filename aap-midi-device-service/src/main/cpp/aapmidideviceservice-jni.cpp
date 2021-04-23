@@ -47,7 +47,7 @@ JNIEXPORT void JNICALL Java_org_androidaudioplugin_midideviceservice_AudioPlugin
     auto aiBinder = AIBinder_fromJavaBinder(env, binder);
 
     AAPMIDIDEVICE_INSTANCE->registerPluginService(
-            aap::AudioPluginServiceConnection(packageNameString, classNameString, aiBinder));
+            std::make_unique<aap::AudioPluginServiceConnection>(packageNameString, classNameString, aiBinder));
 
     free((void *) classNamePtr);
     free((void *) packageNamePtr);
