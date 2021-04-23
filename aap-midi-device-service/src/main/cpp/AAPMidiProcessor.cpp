@@ -251,8 +251,17 @@ namespace aapmidideviceservice {
 
     // Called by Oboe audio callback implementation. It calls process.
     void AAPMidiProcessor::callPluginProcess() {
-        for (auto &data : instance_data_list)
+        for (auto &data : instance_data_list) {
             host->getInstance(data->instance_id)->process(data->plugin_buffer.get(), 1000000000);
+            if (data->instance_id == instrument_instance_id) {
+                if (data->midi1_in_port >= 0)
+                    memset((void *) data->plugin_buffer->buffers[data->midi1_in_port], 0,
+                           aap_frame_size * sizeof(float));
+                if (data->midi2_in_port >= 0)
+                    memset((void *) data->plugin_buffer->buffers[data->midi2_in_port], 0,
+                           aap_frame_size * sizeof(float));
+            }
+        }
     }
 
     // Called by Oboe audio callback implementation. It is called after AAP processing, and
