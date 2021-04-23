@@ -56,7 +56,7 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
     private var sampleRate: Int? = null
     private var oboeFrameSize: Int? = null
     private var audioOutChannelCount: Int = 2
-    private var aapFrameSize = 1024
+    private var aapFrameSize = 512
 
     fun initialize() {
         val audioManager = service.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -87,6 +87,9 @@ class AudioPluginMidiReceiver(private val service: AudioPluginMidiDeviceService)
         if (!closed) {
             deactivate()
             terminateReceiverNative()
+            // FIXME: this has to be called otherwise an old serviceConnector could raise the event
+            //  i.e. event could happen twice (but this call causes crash right now).
+            //serviceConnector.close()
             closed = true
         }
     }
