@@ -168,6 +168,7 @@ namespace aapmidideviceservice {
             midiCIExtData.protocol = CMIDI2_PROTOCOL_TYPE_MIDI2;
             midiCIExtData.protocolVersion = 0;
             midiCIExtension.data = &midiCIExtData;
+            midiCIExtension.transmit_size = sizeof(aap::MidiCIExtension);
             instance->addExtension(midiCIExtension);
         }
 
