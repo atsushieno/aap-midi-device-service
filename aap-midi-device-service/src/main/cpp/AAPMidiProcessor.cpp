@@ -36,7 +36,7 @@ namespace aapmidideviceservice {
         //  Each plugin process is still expected to fit within a callback time slice,
         //  so we still call plugin process() within the callback.
 
-        if (zix_ring_read_space(owner->aap_input_ring_buffer) < oboeNumFrames) {
+        if (zix_ring_read_space(owner->aap_input_ring_buffer) < oboeNumFrames * sizeof(float)) {
             // observer performance. (start)
             struct timespec ts_start, ts_end;
             clock_gettime(CLOCK_REALTIME, &ts_start);
