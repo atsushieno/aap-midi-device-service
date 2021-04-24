@@ -20,6 +20,36 @@ import androidx.compose.ui.unit.sp
 import org.androidaudioplugin.PluginInformation
 import org.androidaudioplugin.midideviceservice.ui.theme.AAPMidiDeviceServiceTheme
 
+interface Updater {
+    fun setInstrumentPlugin(plugin: PluginInformation)
+    fun setMidi2Enabled(value: Boolean)
+    fun initializeMidi()
+    fun terminateMidi()
+    fun playNote()
+}
+
+private object updater: Updater {
+    override fun setInstrumentPlugin(plugin: PluginInformation) {
+        model.specifiedInstrument = plugin
+    }
+
+    override fun setMidi2Enabled(value: Boolean) {
+        model.useMidi2Protocol = value
+    }
+
+    override fun initializeMidi() {
+        model.initializeMidi()
+    }
+
+    override fun terminateMidi() {
+        model.terminateMidi()
+    }
+
+    override fun playNote() {
+        model.playNote()
+    }
+}
+
 @Composable
 fun App() {
     val plugins: List<PluginInformation> = model.pluginServices.flatMap { s -> s.plugins }.toList()
@@ -32,12 +62,12 @@ fun App() {
 
         Surface(color = MaterialTheme.colors.background) {
             Column {
-                AvailablePlugins(onItemClick = { plugin -> model.specifiedInstrument = plugin }, plugins)
+                AvailablePlugins(onItemClick = { plugin -> updater.setInstrumentPlugin(plugin) }, plugins)
                 Row {
                     if (midiManagerInitializedState)
                         Button(modifier = Modifier.padding(2.dp),
                             onClick = {
-                                model.terminateMidi()
+                                updater.terminateMidi()
                                 midiManagerInitializedState = false
                             }) {
                             Text("Stop MIDI Service")
@@ -45,20 +75,20 @@ fun App() {
                     else
                         Button(modifier = Modifier.padding(2.dp),
                             onClick = {
+                                updater.initializeMidi()
                                 midiManagerInitializedState = true
-                                model.initializeMidi()
                             }) {
                             Text("Start MIDI Service")
                         }
                 }
                 Row {
                     Checkbox(checked = useMidi2ProtocolState, onCheckedChange = { value ->
-                        model.useMidi2Protocol = value
+                        updater.setMidi2Enabled(value)
                         useMidi2ProtocolState = value
                     })
                     Text("Use MIDI 2.0 Protocol")
                     Button(modifier = Modifier.padding(2.dp),
-                        onClick = { model.playNote() }) {
+                        onClick = { updater.playNote() }) {
                         Text("Play")
                     }
                     
@@ -84,16 +114,6 @@ fun AvailablePlugins(onItemClick: (PluginInformation) -> Unit = {}, instrumentPl
                     .clickable {
                         onItemClick(plugin)
                         selectedIndex = index
-
-                        // save instrument as the last used one, so that it can be the default.
-                        val sp = applicationContextForModel.getSharedPreferences(
-                            SHARED_PREFERENCE_KEY,
-                            Context.MODE_PRIVATE
-                        )
-                        sp
-                            .edit()
-                            .putString(PREFERENCE_KRY_PLUGIN_ID, model.instrument.pluginId)
-                            .apply()
                     }
                     .border(
                         if (index == selectedIndex) 2.dp else 0.dp,

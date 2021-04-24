@@ -7,7 +7,6 @@ import android.media.midi.MidiDeviceInfo
 import android.media.midi.MidiInputPort
 import android.media.midi.MidiManager
 import android.media.midi.MidiManager.OnDeviceOpenedListener
-import androidx.preference.Preference
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -22,6 +21,7 @@ val model: ApplicationModel
 
 internal const val SHARED_PREFERENCE_KEY = "aap-midi-device-service-preferences"
 internal const val PREFERENCE_KRY_PLUGIN_ID = "last_used_plugin_id"
+internal const val PREFERENCE_KRY_USED_MIDI2_PROTOCOL = "last_used_midi2_protocol"
 
 class ApplicationModel(private val packageName: String, context: Context) {
     companion object {
@@ -32,15 +32,40 @@ class ApplicationModel(private val packageName: String, context: Context) {
     lateinit var midiInput: MidiInputPort
     val pluginServices = AudioPluginHostHelper.queryAudioPluginServices(context.applicationContext)
 
-    var useMidi2Protocol = false
     var midiManagerInitialized = false
-    var specifiedInstrument: PluginInformation? = null
+
+    private var _useMidi2Protocol = false
+    var useMidi2Protocol : Boolean
+        get() = _useMidi2Protocol
+        set(value) {
+            _useMidi2Protocol = value
+            val sp = applicationContextForModel.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
+            sp.edit().putBoolean(PREFERENCE_KRY_USED_MIDI2_PROTOCOL, value).apply()
+        }
+
+    private var _specifiedInstrument: PluginInformation? = null
+    var specifiedInstrument: PluginInformation?
+        get() = _specifiedInstrument
+        set(value) {
+            _specifiedInstrument = value
+            // save instrument as the last used one, so that it can be the default.
+            val sp = applicationContextForModel.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
+            sp.edit().putString(PREFERENCE_KRY_PLUGIN_ID, value?.pluginId).apply()
+        }
+
+    private fun getLastUsedMidi2(ctx: Context) : Boolean {
+        val sp = ctx.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
+        return if (sp.contains(PREFERENCE_KRY_USED_MIDI2_PROTOCOL))
+            sp.getBoolean(PREFERENCE_KRY_USED_MIDI2_PROTOCOL, false)
+        else false
+    }
 
     private fun getLastUsedInstrument(ctx: Context): PluginInformation? {
         val sp = ctx.getSharedPreferences(SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
         val pluginId = sp.getString(PREFERENCE_KRY_PLUGIN_ID, null)
         if (pluginId != null)
-            return pluginServices.flatMap { s -> s.plugins}.firstOrNull { p -> p.pluginId == pluginId }
+            return pluginServices.flatMap { s -> s.plugins }
+                .firstOrNull { p -> p.pluginId == pluginId }
         return null
     }
 
@@ -99,5 +124,6 @@ class ApplicationModel(private val packageName: String, context: Context) {
 
     init {
         specifiedInstrument = getLastUsedInstrument(context)
+        useMidi2Protocol = getLastUsedMidi2(context)
     }
 }
