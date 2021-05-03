@@ -190,7 +190,7 @@ namespace aapmidideviceservice {
         for (int i = 0; i < numPorts; i++) {
             int fd = ASharedMemory_create(nullptr, memSize);
             data->portSharedMemoryFDs.emplace_back(fd);
-            sharedMemoryExtension->getPortBufferFDs().emplace_back(fd);
+            sharedMemoryExtension->getPortBufferFDs()->at(i) = fd;
             data->plugin_buffer->buffers[i] = mmap(nullptr, memSize,
                                                          PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
